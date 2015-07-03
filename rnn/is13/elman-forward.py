@@ -1,14 +1,16 @@
-import numpy
 import time
 import sys
 import subprocess
 import os
 import random
 
-from ..data import load
-from ..rnn.jordan import model
-from ..metrics.accuracy import conlleval
-from ..utils.tools import shuffle, minibatch, contextwin
+import numpy
+
+import load
+from elman import model
+from accuracy import conlleval
+from tools import shuffle, minibatch, contextwin
+
 
 if __name__ == '__main__':
 
@@ -67,11 +69,9 @@ if __name__ == '__main__':
             words  = map(lambda x: numpy.asarray(x).astype('int32'),\
                          minibatch(cwords, s['bs']))
             labels = train_y[i]
-
             for word_batch , label_last_word in zip(words, labels):
                 rnn.train(word_batch, label_last_word, s['clr'])
                 rnn.normalize()
-
             if s['verbose']:
                 print '[learning] epoch %i >> %2.2f%%'%(e,(i+1)*100./nsentences),'completed in %.2f (sec) <<\r'%(time.time()-tic),
                 sys.stdout.flush()
