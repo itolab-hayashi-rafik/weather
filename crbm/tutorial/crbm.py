@@ -484,3 +484,4 @@ if __name__ == '__main__':
     leg = plt.legend()
     ltext = leg.get_texts()  # all the text.Text instance in the legend
     plt.setp(ltext, fontsize=9)
+    plt.show()
