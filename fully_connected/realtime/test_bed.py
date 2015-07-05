@@ -9,7 +9,7 @@ from generator import SimpleGenerator
 from visualizer import Visualizer
 
 class TestBed:
-    def __init__(self, window_size=1, m=1, r=2, batch_size=1):
+    def __init__(self, window_size=1, m=1, r=2, batch_size=1, hidden_layers_sizes=[10]):
         self.r = r
         self.window_size = window_size
         self.n_batches = (self.window_size / batch_size)
@@ -29,7 +29,7 @@ class TestBed:
         self.sda = SdA(
             numpy_rng=numpy_rng,
             n_ins=self.n_input,
-            hidden_layers_sizes=[10],
+            hidden_layers_sizes=hidden_layers_sizes,
             n_outs=self.n_output
         )
 

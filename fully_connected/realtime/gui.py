@@ -32,11 +32,10 @@ class Worker(QtCore.QThread):
         self.mutex = QtCore.QMutex()
         pass
 
-    def setup(self, m=2, r=2, window_size=20, batch_size=1, pretrain_step=20):
-        self.bed = TestBed(m=m, r=r, window_size=window_size, batch_size=batch_size)
+    def setup(self, m=2, r=2, window_size=20, batch_size=1, hidden_layer_sizes=[10], pretrain_step=20):
+        self.bed = TestBed(m=m, r=r, window_size=window_size, batch_size=batch_size, hidden_layers_sizes=hidden_layer_sizes)
         self.gen = SimpleGenerator(num=m)
         self.pretrain_step = pretrain_step
-        self.stop_flg = False
 
     def setDelay(self, delay):
         self.delay = delay
@@ -52,6 +51,7 @@ class Worker(QtCore.QThread):
             self.stop_flg = True
 
     def run(self):
+        self.stop_flg = False
         self.started.emit()
 
         for i,y in enumerate(self.gen):
@@ -97,11 +97,15 @@ class Window(QtGui.QDialog):
 
         # Form
         self.window_size_line_edit = QtGui.QLineEdit('10')
+        self.m_line_edit = QtGui.QLineEdit('1')
         self.r_line_edit = QtGui.QLineEdit('2')
+        self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('10,10,10')
 
         self.input_form = QtGui.QFormLayout()
         self.input_form.addRow('Window SIze:', self.window_size_line_edit)
+        self.input_form.addRow('m:', self.m_line_edit)
         self.input_form.addRow('r:', self.r_line_edit)
+        self.input_form.addRow('Hidden Layer Sizes:', self.hidden_layer_sizes_line_edit)
 
         self.pretrian_epochs_line_edit = QtGui.QLineEdit('10')
         self.pretrian_epochs_line_edit.textChanged.connect(self.updateWorker)
@@ -155,9 +159,12 @@ class Window(QtGui.QDialog):
         self.start_stop_button.setEnabled(False)
 
         window_size = string.atoi(self.window_size_line_edit.text())
+        m = string.atoi(self.m_line_edit.text())
         r = string.atoi(self.r_line_edit.text())
+        hidden_layer_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
+        hidden_layer_sizes = [string.atoi(n) for n in hidden_layer_sizes]
 
-        self.worker.setup(r=r, window_size=window_size)
+        self.worker.setup(m=m, r=r, window_size=window_size, hidden_layer_sizes=hidden_layer_sizes, pretrain_step=1)
         self.updateWorker()
         self.worker.start()
 
