@@ -72,7 +72,7 @@ class TestBed:
                     c.append(self.pretraining_fns[i](index=batch_index, corruption=corruption_levels[i], lr=pretraining_lr))
                 minibatch_avg_cost = numpy.mean(c)
                 avg_cost = avg_cost + minibatch_avg_cost
-        avg_cost /= total_epochs
+        avg_cost = avg_cost / total_epochs if 0 < total_epochs else 0
         return avg_cost
 
     def finetune(self, finetunning_epochs, finetunning_lr=0.1):
@@ -84,7 +84,7 @@ class TestBed:
             for minibatch_index in xrange(self.n_batches):
                 minibatch_avg_cost = self.train_fn(minibatch_index, lr=finetunning_lr)
                 avg_cost = avg_cost + minibatch_avg_cost
-        avg_cost /= epoch
+        avg_cost = avg_cost / epoch if 0 < epoch else 0
         return avg_cost
 
     def predict(self):

@@ -22,7 +22,8 @@ class SimpleGenerator(Generator):
         self.i = 0
 
     def noise(self, x):
-        return (random.random() * 0.1)
+        # return (random.random() * 0.1)
+        return 0
 
     def itrgenerate(self, x, l):
         if l % 2 == 0:
