@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 class Visualizer:
     def __init__(self, xlim=30):
-        self.fig = None
+        self.fig = plt.figure()
         self.axs = None
         self.plots = None
         self.xs = None
@@ -14,10 +14,10 @@ class Visualizer:
         self.ymin=0
         self.ymax=0
 
-    def drawFrame(self):
-        if self.fig is None:
-            self.fig = plt.figure()
-            plt.show(block=False)
+        self.m = -1
+
+    def getFigure(self):
+        return self.fig
 
     def initDraw(self, m):
         self.xs = ( [], [] )	# xdata, pred_xdata
@@ -33,11 +33,11 @@ class Visualizer:
             self.axs.append(ax)
             self.plots.append([plot_y, plot_y_pred])
 
+        self.m = m
         plt.draw()
 
     def append(self, y, y_pred=None):
-        if self.fig is None:
-            self.drawFrame()
+        if len(y) != self.m:
             self.initDraw(len(y))
 
         x = self.last_x + 1
