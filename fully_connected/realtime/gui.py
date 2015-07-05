@@ -179,6 +179,10 @@ class Window(QtGui.QDialog):
 
     def workerStarted(self):
         self.start_stop_button.setEnabled(True)
+        self.window_size_line_edit.setReadOnly(True)
+        self.m_line_edit.setReadOnly(True)
+        self.r_line_edit.setReadOnly(True)
+        self.hidden_layer_sizes_line_edit.setReadOnly(True)
 
     def updateFigure(self):
         # refresh canvas
@@ -186,6 +190,10 @@ class Window(QtGui.QDialog):
 
     def workerStopped(self):
         self.start_stop_button.setEnabled(True)
+        self.window_size_line_edit.setReadOnly(False)
+        self.m_line_edit.setReadOnly(False)
+        self.r_line_edit.setReadOnly(False)
+        self.hidden_layer_sizes_line_edit.setReadOnly(False)
 
     def getLearningParams(self):
         return {
