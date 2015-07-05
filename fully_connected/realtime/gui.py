@@ -96,7 +96,7 @@ class Window(QtGui.QDialog):
         # self.toolbar = NavigationToolbar(self.canvas, self)
 
         # Form
-        self.window_size_line_edit = QtGui.QLineEdit('21')
+        self.window_size_line_edit = QtGui.QLineEdit('10')
         self.r_line_edit = QtGui.QLineEdit('2')
 
         self.input_form = QtGui.QFormLayout()

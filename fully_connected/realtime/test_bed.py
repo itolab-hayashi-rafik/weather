@@ -81,14 +81,16 @@ class TestBed:
         avg_cost = 0
         while (epoch < finetunning_epochs) and (not done_looping):
             epoch = epoch + 1
-            for minibatch_index in xrange(self.n_batches):
+            batch_idx = range(self.n_batches)
+            numpy.random.shuffle(batch_idx)
+            for minibatch_index in batch_idx:
                 minibatch_avg_cost = self.train_fn(minibatch_index, lr=finetunning_lr)
                 avg_cost = avg_cost + minibatch_avg_cost
         avg_cost = avg_cost / epoch if 0 < epoch else 0
         return avg_cost
 
     def predict(self):
-        return self.predict_fn(self.x_value_pred)[0]
+        return self.predict_fn(self.x_value_pred)[-1]
 
 
 def main(m=5, r=2, window_size=20, batch_size=2):
