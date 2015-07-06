@@ -20,16 +20,23 @@ class SimpleGenerator(Generator):
         super(SimpleGenerator, self).__init__()
         self.num = num
         self.i = 0
+        self.k = 0 # shape
+        self.n = 0 # noise
+
+    def setK(self, k):
+        self.k = max(0, k)
+
+    def setN(self, n):
+        self.n = min(max(0, n), 1)
 
     def noise(self, x):
-        # return (random.random() * 0.1)
-        return 0
+        return (random.random() * self.n)
 
     def itrgenerate(self, x, l):
         if l % 2 == 0:
-            y = (1 + math.sin((x+l/2) / math.pi)) * 0.5
+            y = (1 + math.sin((x+l/2) / (self.k+1) / math.pi)) * 0.5
         else:
-            y = (1 + math.cos((x+l/2) / math.pi)) * 0.5
+            y = (1 + math.cos((x+l/2) / (self.k+1) / math.pi)) * 0.5
         y += self.noise(x)
         return y
 

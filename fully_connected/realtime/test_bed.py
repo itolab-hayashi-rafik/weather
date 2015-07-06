@@ -59,17 +59,17 @@ class TestBed:
         self.y_value[-1] = y
 
     def pretrain(self, pretraining_epochs, pretraining_lr):
-        corruption_levels = [.1, .2, .3]
         total_epochs = 0
         avg_cost = 0
         for i in xrange(self.sda.n_layers):
+            corruption_level = i / 10.0
             # go through pretraining epochs
             for epoch in xrange(pretraining_epochs):
                 total_epochs = total_epochs + 1
                 # go through the training set
                 c = []
                 for batch_index in xrange(self.n_batches):
-                    c.append(self.pretraining_fns[i](index=batch_index, corruption=corruption_levels[i], lr=pretraining_lr))
+                    c.append(self.pretraining_fns[i](index=batch_index, corruption=corruption_level, lr=pretraining_lr))
                 minibatch_avg_cost = numpy.mean(c)
                 avg_cost = avg_cost + minibatch_avg_cost
         avg_cost = avg_cost / total_epochs if 0 < total_epochs else 0

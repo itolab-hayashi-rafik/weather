@@ -1,11 +1,9 @@
+# -*- coding: utf-8 -*-
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
+
 import time
 import string
-
-import numpy
-import theano
-from theano import tensor as T
 
 import matplotlib
 matplotlib.use('Qt4Agg')
@@ -15,9 +13,9 @@ from PySide import QtGui, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 
-from generator import SimpleGenerator
-from test_bed import TestBed
-from visualizer import Visualizer
+from testbed import TestBed
+from generator import Generator
+import utils
 
 class Worker(QtCore.QThread):
 
@@ -25,25 +23,22 @@ class Worker(QtCore.QThread):
     updated = QtCore.Signal()
     stopped = QtCore.Signal()
 
-    def __init__(self, vis, parent=None):
+    def __init__(self, scene, parent=None):
         super(Worker, self).__init__(parent)
         self.bed = None
         self.gen = None
 
-        self.vis = vis
+        self.scene = scene
         self.stop_flg = False
         self.mutex = QtCore.QMutex()
-        pass
 
-    def setup(self, m=2, r=2, window_size=20, batch_size=1, hidden_layer_sizes=[10], pretrain_step=20):
-        self.bed = TestBed(m=m, r=r, window_size=window_size, batch_size=batch_size, hidden_layers_sizes=hidden_layer_sizes)
-        self.gen = SimpleGenerator(num=m)
+    def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10], pretrain_step=20):
+        self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        self.gen = Generator(w=w, h=h, d=d)
         self.pretrain_step = pretrain_step
 
     def setGeneratorParams(self, k, n):
-        if self.gen is not None:
-            self.gen.setK(k)
-            self.gen.setN(n)
+        pass
 
     def setDelay(self, delay):
         self.delay = delay
@@ -64,19 +59,21 @@ class Worker(QtCore.QThread):
         self.started.emit()
 
         for i,y in enumerate(self.gen):
+            images = utils.generateImage(y)
+
             if i % self.pretrain_step == 0:
                 # pretrain
-                avg_cost = self.bed.pretrain(self.pretrain_epochs, pretraining_lr=self.pretrain_lr)
+                avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr)
                 print("   pretrain cost: {}".format(avg_cost))
 
             # predict
             y_pred = self.bed.predict()
             print("{}: y={}, y_pred={}".format(i, y, y_pred))
-            self.vis.append(y, y_pred)
+            self.scene.addPixMap(images[0])
 
             # finetune
             self.bed.supply(y)
-            avg_cost = self.bed.finetune(self.finetune_epochs, finetunning_lr=self.finetune_lr)
+            avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr)
             # bed.finetune(100, finetunning_lr=0.01)
             # bed.finetune(100, finetunning_lr=0.001)
             print("   train cost: {}".format(avg_cost))
@@ -94,12 +91,10 @@ class Window(QtGui.QDialog):
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
 
-        # visualizer
-        self.vis = Visualizer(xlim=30)
-
         # this is the Canvas Widget that displays the `figure`
         # it takes the `figure` instance as a parameter to __init__
-        self.canvas = FigureCanvas(self.vis.getFigure())
+        self.scene = QtGui.QGraphicsScene(self)
+        self.grview = QtGui.QGraphicsView(self.scene, self)
 
         # this is the Navigation widget
         # it takes the Canvas widget and a parent
@@ -108,17 +103,23 @@ class Window(QtGui.QDialog):
         # Form
         self.window_size_line_edit = QtGui.QLineEdit('10')
         self.window_size_line_edit.textChanged.connect(self.dnnChanged)
-        self.m_line_edit = QtGui.QLineEdit('1')
-        self.m_line_edit.textChanged.connect(self.dnnChanged)
-        self.r_line_edit = QtGui.QLineEdit('2')
-        self.r_line_edit.textChanged.connect(self.dnnChanged)
+        self.w_line_edit = QtGui.QLineEdit('10')
+        self.w_line_edit.textChanged.connect(self.dnnChanged)
+        self.h_line_edit = QtGui.QLineEdit('10')
+        self.h_line_edit.textChanged.connect(self.dnnChanged)
+        self.d_line_edit = QtGui.QLineEdit('1')
+        self.d_line_edit.textChanged.connect(self.dnnChanged)
+        self.n_line_edit = QtGui.QLineEdit('2')
+        self.n_line_edit.textChanged.connect(self.dnnChanged)
         self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('10,10,10')
         self.hidden_layer_sizes_line_edit.textChanged.connect(self.dnnChanged)
 
         self.input_form = QtGui.QFormLayout()
         self.input_form.addRow('Window SIze:', self.window_size_line_edit)
-        self.input_form.addRow('m:', self.m_line_edit)
-        self.input_form.addRow('r:', self.r_line_edit)
+        self.input_form.addRow('w:', self.w_line_edit)
+        self.input_form.addRow('h:', self.h_line_edit)
+        self.input_form.addRow('d:', self.d_line_edit)
+        self.input_form.addRow('n:', self.n_line_edit)
         self.input_form.addRow('Hidden Layer Sizes:', self.hidden_layer_sizes_line_edit)
 
         self.pretrian_epochs_line_edit = QtGui.QLineEdit('10')
@@ -163,9 +164,7 @@ class Window(QtGui.QDialog):
         # set the layout
         layout = QtGui.QGridLayout()
         # layout.addWidget(self.toolbar)
-        layout.addWidget(self.canvas, 0, 0, 1, 2)
-        layout.addWidget(self.k_slider, 0, 2, 1, 1)
-        layout.addWidget(self.n_slider, 0, 3, 1, 1)
+        layout.addWidget(self.grview, 0, 0, 1, 2)
         layout.addLayout(self.input_form, 1, 0, 1, 1)
         layout.addLayout(self.learn_form, 1, 1, 1, 1)
         layout.addWidget(self.slider, 2, 0)
@@ -174,11 +173,11 @@ class Window(QtGui.QDialog):
 
         # setup worker
         self.need_setup = True
-        self.worker = Worker(self.vis)
+        self.worker = Worker(self.scene)
 
         # setup event dispatchers
         self.worker.started.connect(self.workerStarted)
-        self.worker.updated.connect(self.updateFigure)
+        self.worker.updated.connect(self.updateGraphics)
         self.worker.stopped.connect(self.workerStopped)
 
     def start(self):
@@ -186,13 +185,15 @@ class Window(QtGui.QDialog):
         self.start_stop_button.setEnabled(False)
 
         window_size = string.atoi(self.window_size_line_edit.text())
-        m = string.atoi(self.m_line_edit.text())
-        r = string.atoi(self.r_line_edit.text())
-        hidden_layer_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
-        hidden_layer_sizes = [string.atoi(n) for n in hidden_layer_sizes]
+        w = string.atoi(self.w_line_edit.text())
+        h = string.atoi(self.h_line_edit.text())
+        d = string.atoi(self.d_line_edit.text())
+        n = string.atoi(self.n_line_edit.text())
+        hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
+        hidden_layers_sizes = [string.atoi(n) for n in hidden_layers_sizes]
 
         if self.need_setup:
-            self.worker.setup(m=m, r=r, window_size=window_size, hidden_layer_sizes=hidden_layer_sizes, pretrain_step=1)
+            self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
             self.need_setup = False
         self.updateWorker()
         self.worker.start()
@@ -213,22 +214,14 @@ class Window(QtGui.QDialog):
     def workerStarted(self):
         self.start_stop_button.setEnabled(True)
         self.start_stop_button.clicked.connect(self.stop)
-        self.window_size_line_edit.setReadOnly(True)
-        self.m_line_edit.setReadOnly(True)
-        self.r_line_edit.setReadOnly(True)
-        self.hidden_layer_sizes_line_edit.setReadOnly(True)
 
-    def updateFigure(self):
+    def updateGraphics(self):
         # refresh canvas
         self.canvas.draw()
 
     def workerStopped(self):
         self.start_stop_button.setEnabled(True)
         self.start_stop_button.clicked.connect(self.start)
-        self.window_size_line_edit.setReadOnly(False)
-        self.m_line_edit.setReadOnly(False)
-        self.r_line_edit.setReadOnly(False)
-        self.hidden_layer_sizes_line_edit.setReadOnly(False)
 
     def getLearningParams(self):
         return {
@@ -238,16 +231,8 @@ class Window(QtGui.QDialog):
             'finetune_lr': 1.0/pow(10, self.finetune_lr_slider.value())
         }
 
-    def getNValue(self):
-        return self.n_slider.value() / 100.0
-
-    def getKValue(self):
-        return self.k_slider.value()/ 100.0
-
     def getDelayValue(self):
         return self.slider.value() / 100.0
-
-
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
