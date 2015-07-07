@@ -241,6 +241,7 @@ class SdAIndividual(object):
                 c.append(minibatch_avg_cost)
                 iter = (epoch - 1) * n_train_batches + minibatch_index
 
+                # FIXME: early-stop 実装
                 # if (iter + 1) % validation_frequency == 0:
                 #     validation_losses = validate_model()
                 #     this_validation_loss = numpy.mean(validation_losses)
