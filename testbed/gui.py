@@ -123,15 +123,15 @@ class Window(QtGui.QDialog):
         # Form
         self.window_size_line_edit = QtGui.QLineEdit('10')
         self.window_size_line_edit.textChanged.connect(self.dnnChanged)
-        self.w_line_edit = QtGui.QLineEdit('10')
+        self.w_line_edit = QtGui.QLineEdit('1')
         self.w_line_edit.textChanged.connect(self.dnnChanged)
-        self.h_line_edit = QtGui.QLineEdit('10')
+        self.h_line_edit = QtGui.QLineEdit('1')
         self.h_line_edit.textChanged.connect(self.dnnChanged)
         self.d_line_edit = QtGui.QLineEdit('1')
         self.d_line_edit.textChanged.connect(self.dnnChanged)
         self.n_line_edit = QtGui.QLineEdit('2')
         self.n_line_edit.textChanged.connect(self.dnnChanged)
-        self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('10,10,10')
+        self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('10')
         self.hidden_layer_sizes_line_edit.textChanged.connect(self.dnnChanged)
 
         self.input_form = QtGui.QFormLayout()
@@ -142,7 +142,7 @@ class Window(QtGui.QDialog):
         self.input_form.addRow('n:', self.n_line_edit)
         self.input_form.addRow('Hidden Layer Sizes:', self.hidden_layer_sizes_line_edit)
 
-        self.pretrian_epochs_line_edit = QtGui.QLineEdit('10')
+        self.pretrian_epochs_line_edit = QtGui.QLineEdit('0')
         self.pretrian_epochs_line_edit.textChanged.connect(self.updateWorker)
         self.pretrain_lr_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self.pretrain_lr_slider.setRange(1, 10)
@@ -262,15 +262,15 @@ class Window(QtGui.QDialog):
         return self.slider.value() / 100.0
 
 if __name__ == '__main__':
-    worker = Worker()
-    worker.setup()
-    worker.setLearningParams({
-        'pretrain_epochs': 10,
-        'pretrain_lr': 0.1,
-        'finetune_epochs': 10,
-        'finetune_lr': 0.1
-    })
-    worker.run()
+    # worker = Worker()
+    # worker.setup()
+    # worker.setLearningParams({
+    #     'pretrain_epochs': 10,
+    #     'pretrain_lr': 0.1,
+    #     'finetune_epochs': 10,
+    #     'finetune_lr': 0.1
+    # })
+    # worker.run()
 
     app = QtGui.QApplication(sys.argv)
 

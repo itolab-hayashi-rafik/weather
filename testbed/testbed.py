@@ -52,12 +52,10 @@ class TestBed(object):
         '''
         return self.model.finetune(self.dataset, epochs=epochs, learning_rate=learning_rate)
 
-    def predict(self, x=None):
+    def predict(self):
         '''
         入力 x から y の値を予測する
-        :param x: d-by-w-by-h 次元の ndarray のデータが r 個入った配列
+        :param x: d-by-w-by-h 次元の ndarray のデータが n 個入った配列
         :return:
         '''
-        if x is None:
-            x = self.dataset[-self.n:]
-        return self.model.predict(x)
+        return self.model.predict(self.dataset)

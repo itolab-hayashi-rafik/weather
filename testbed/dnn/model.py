@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from operator import itemgetter
 
 import numpy
 import theano
@@ -56,7 +57,7 @@ class SdAIndividual(object):
         # self.predict_fns = [ [dnn.build_prediction_function() for dnn in dnns] for dnns in self.dnns ]
         # print('done')
 
-    def _make_input(self, ndata, i, j):
+    def _make_input(self, dataset, idx, i, j):
         '''
         (i,j) の SdA に対する入力ベクトルを ndata から作る
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
@@ -64,9 +65,14 @@ class SdAIndividual(object):
         :param j:
         :return:
         '''
-        return numpy.append([], [chunk[:,j,i] for chunk in ndata]).reshape((1, self.n*self.d))
+        # return numpy.append([], [chunk[:,j,i] for chunk in ndata]).reshape((1, self.n*self.d))
+        # return dataset[[range(n,n+self.n) for n in idx], :, j, i].reshape((len(idx), self.n*self.d))
+        x = []
+        for n in idx:
+            x.append(numpy.append([], [chunk[:,j,i] for chunk in dataset[n:n+self.n]]))
+        return numpy.asarray(x, dtype=theano.config.floatX)
 
-    def _make_output(self, data, i, j):
+    def _make_output(self, dataset, idx, i, j):
         '''
         (i,j) の SdA に対する出力ベクトルをつくる
         :param data:
@@ -74,7 +80,11 @@ class SdAIndividual(object):
         :param j:
         :return:
         '''
-        return data[:,j,i].reshape((1, self.d))
+        # return data[:,j,i].reshape((1, self.d))
+        y = []
+        for n in idx:
+            y.append(dataset[n+self.n][:,j,i])
+        return numpy.asarray(y, dtype=theano.config.floatX)
 
     # def _build_pretrain_functions(self, dataset):
     #     index = T.lscalar('index')
@@ -146,26 +156,22 @@ class SdAIndividual(object):
         for i in xrange(len(self.sda.params)):
             self.sda.params[i].set_value(dnn.params[i].get_value(borrow=True), borrow=True)
 
-    def _pretrain_step(self, dataset, learning_rate):
-        idx = range(self.n+1,len(dataset))
-        numpy.random.shuffle(idx)
-
+    def _pretrain_step(self, layer, dataset, index, batch_size, corruption, learning_rate):
         avg_cost = 0.0
 
-        for l in xrange(self.n_hidden_layers):
-            for j in xrange(self.h):
-                for i in xrange(self.w):
-                    self.prepare(i, j)
-                    for index in idx:
-                        xdata = self._make_input(dataset[(index-self.n-1):index-1], i, j)
-                        cost = self.pretrain_fns[l](xdata, corruption=0.0, lr=learning_rate)
-                        avg_cost += cost
+        idx = range(index*batch_size, (index+1)*batch_size)
+        for j in xrange(self.h):
+            for i in xrange(self.w):
+                self.prepare(i, j)
+                xdata = self._make_input(dataset, idx, i, j)
+                cost = self.pretrain_fns[layer](xdata, corruption=corruption, lr=learning_rate)
+                avg_cost += cost
 
-        avg_cost /= self.n_hidden_layers * len(idx) * (self.w*self.h)
+        avg_cost /= self.n_hidden_layers * (self.w*self.h)
 
         return avg_cost
 
-    def pretrain(self, dataset, epochs=100, learning_rate=0.1, patience=9):
+    def pretrain(self, dataset, batch_size=1, epochs=100, learning_rate=0.1):
         '''
         pretrain the model using the dataset
         :param dataset:
@@ -173,68 +179,101 @@ class SdAIndividual(object):
         :param learning_rate:
         :return:
         '''
-        loop_done = False
-        epoch = 0
+        n_train_batches = (len(dataset) - self.n) / batch_size
 
-        best_cost = numpy.inf
-        best_epoch = -1
-        while (epoch < epochs) and not loop_done:
-            cost = self._pretrain_step(dataset, learning_rate)
-            # print('  pretrain({}): cost={}'.format(epoch, cost))
-            if cost < best_cost:
-                best_cost = cost
-                best_epoch = epoch
-            elif best_epoch + patience < epoch:
-                loop_done = True
+        avg_cost = numpy.inf
+        for layer in xrange(self.n_hidden_layers):
+            loop_done = False
+            epoch = 0
+            while (epoch < epochs) and not loop_done:
+                c = []
+                for minibatch_index in xrange(n_train_batches):
+                    minibatch_avg_cost = self._pretrain_step(layer, dataset, minibatch_index, batch_size, 0.0, learning_rate)
+                    c.append(minibatch_avg_cost)
 
-            epoch = epoch + 1
+                avg_cost = numpy.mean(c)
+                # print('  pretrain({}): cost={}'.format(epoch, cost))
 
-        return best_cost
+                epoch = epoch + 1
 
-    def _finetune_step(self, dataset, learning_rate):
-        idx = range(self.n+1,len(dataset))
-        numpy.random.shuffle(idx)
+        return avg_cost
 
+    def _finetune_step(self, dataset, index, batch_size, learning_rate):
         avg_cost = 0.0
 
+        idx = range(index*batch_size, (index+1)*batch_size)
         for j in xrange(self.h):
             for i in xrange(self.w):
                 self.prepare(i,j)
-                for index in idx:
-                    xdata = self._make_input(dataset[(index-self.n-1):index-1], i, j)
-                    ydata = self._make_output(dataset[index], i, j)
-                    cost = self.finetune_fn(xdata, ydata, lr=learning_rate)
-                    avg_cost += cost
+                xdata = self._make_input(dataset, idx, i, j)
+                ydata = self._make_output(dataset, idx, i, j)
+                cost = self.finetune_fn(xdata, ydata, lr=learning_rate)
+                avg_cost += cost
 
         avg_cost /= len(idx) * (self.w*self.h)
 
         return avg_cost
 
-    def finetune(self, dataset, epochs=100, learning_rate=0.1, patience=9):
+    def finetune(self, dataset, batch_size=1, epochs=100, learning_rate=0.1, patience=9):
         '''
         finetune the model using the dataset
         :param dataset: an array of ndarray of (d-by-h-by-w) dimention, whose size is bigger than n
         :return:
         '''
+        n_train_batches = (len(dataset) - self.n) / batch_size
+
+        # early-stopping parameters
+        patience = 10 * n_train_batches  # look as this many examples regardless
+        patience_increase = 2.  # wait this much longer when a new best is found
+        improvement_threshold = 0.995  # a relative improvement of this much is considered significant
+        validation_frequency = min(n_train_batches, patience / 2)
+
+        best_validation_loss = numpy.inf
+
         loop_done = False
         epoch = 0
 
-        best_cost = numpy.inf
-        best_epoch = -1
+        avg_cost = numpy.inf
         while (epoch < epochs) and not loop_done:
-            cost = self._finetune_step(dataset, learning_rate)
-            # print('  finetune({}): cost={}'.format(epoch, cost))
-            if cost < best_cost:
-                best_cost = cost
-                best_epoch = epoch
-            elif best_epoch + patience < epoch:
-                loop_done = True
+            c = []
+            for minibatch_index in xrange(n_train_batches):
+                minibatch_avg_cost = self._finetune_step(dataset, minibatch_index, batch_size, learning_rate)
+                c.append(minibatch_avg_cost)
+                iter = (epoch - 1) * n_train_batches + minibatch_index
 
+                # if (iter + 1) % validation_frequency == 0:
+                #     validation_losses = validate_model()
+                #     this_validation_loss = numpy.mean(validation_losses)
+                #     print('epoch %i, minibatch %i/%i, validation error %f %%' %
+                #           (epoch, minibatch_index + 1, n_train_batches,
+                #            this_validation_loss * 100.))
+                #
+                #     # if we got the best validation score until now
+                #     if this_validation_loss < best_validation_loss:
+                #
+                #         #improve patience if loss improvement is good enough
+                #         if (
+                #                     this_validation_loss < best_validation_loss *
+                #                     improvement_threshold
+                #         ):
+                #             patience = max(patience, iter * patience_increase)
+                #
+                #         # save best validation score and iteration number
+                #         best_validation_loss = this_validation_loss
+                #         best_iter = iter
+
+                if patience <= iter:
+                    done_looping = True
+                    break
+
+            # print('  finetune({}): cost={}'.format(epoch, cost))
+
+            avg_cost = numpy.mean(c)
             epoch = epoch + 1
 
-        return best_cost
+        return avg_cost
 
-    def predict(self, ndata):
+    def predict(self, dataset):
         '''
         predict the next value
         :param n: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
@@ -244,6 +283,6 @@ class SdAIndividual(object):
         for j in xrange(self.h):
             for i in xrange(self.w):
                 self.prepare(i,j)
-                y[:,j,i] = self.predict_fn(self._make_input(ndata, i, j))[-1]
+                y[:,j,i] = self.predict_fn(self._make_input(dataset, [len(dataset)-self.n], i, j))[-1]
 
         return y
