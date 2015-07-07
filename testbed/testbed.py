@@ -16,7 +16,7 @@ class TestBed(object):
         '''
         初期化する
         :param window_size:
-        :param r: DNN に入力する過去のデータの個数
+        :param n: DNN に入力する過去のデータの個数
         :param w: 各データの横幅
         :param h: 各データの高さ
         :param d: 各データのチャンネル数
@@ -24,6 +24,7 @@ class TestBed(object):
         :return:
         '''
         self.window_size = window_size
+        self.n = n
         self.w = w
         self.h = h
         self.d = d
@@ -51,10 +52,12 @@ class TestBed(object):
         '''
         return self.model.finetune(self.dataset, epochs=epochs, learning_rate=learning_rate)
 
-    def predict(self, x):
+    def predict(self, x=None):
         '''
         入力 x から y の値を予測する
         :param x: d-by-w-by-h 次元の ndarray のデータが r 個入った配列
         :return:
         '''
+        if x is None:
+            x = self.dataset[-self.n:]
         return self.model.predict(x)

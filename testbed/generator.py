@@ -15,15 +15,17 @@ class Generator(object):
         return self
 
     def next(self):
+        print("Generator: generating image {}...".format(self.t)),
         data =\
         [
             [
                 [
-                    math.sin((self.t - i - j) / 100.0 / math.pi)
+                    (1 + math.sin((self.t - i - j) / math.pi)) * 0.5
                     for i in xrange(self.w)
                 ] for j in xrange(self.h)
             ] for k in xrange(self.d)
         ]
+        print("done")
 
         self.t += 1
         return numpy.asarray(data, dtype=theano.config.floatX)

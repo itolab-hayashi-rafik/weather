@@ -65,8 +65,8 @@ class SdA(Network):
         if not theano_rng:
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
         # allocate symbolic variables for the data
-        self.x = T.matrix('x')  # the data is presented as rasterized images
-        self.y = T.matrix('y')  # the labels are presented as 1D vector of
+        self.x = T.dmatrix('x')  # the data is presented as rasterized images
+        self.y = T.dmatrix('y')  # the labels are presented as 1D vector of
                                  # [int] labels
         # end-snippet-1
 
@@ -148,6 +148,14 @@ class SdA(Network):
         #
         self.y_pred = self.linLayer.y_pred
 
+    def get_pretraining_cost_updates(self, corruption_level, learning_rate):
+        cost_updates = []
+        for dA in self.dA_layers:
+            cost_update = dA.get_cost_updates(corruption_level, learning_rate)
+            cost_updates.append(cost_update)
+
+        return cost_updates
+
     def pretraining_functions(self):
         ''' Generates a list of functions, each of them implementing one
         step in trainnig the dA corresponding to the layer with same index.
@@ -171,10 +179,12 @@ class SdA(Network):
         corruption_level = T.scalar('corruption')  # % of corruption to use
         learning_rate = T.scalar('lr')  # learning rate to use
 
+        cost_updates = self.get_pretraining_cost_updates(corruption_level, learning_rate)
+
         pretrain_fns = []
-        for dA in self.dA_layers:
+        for cost_update in cost_updates:
             # get the cost and the updates list
-            cost, updates = dA.get_cost_updates(corruption_level, learning_rate)
+            cost, updates = cost_update
             # compile the theano function
             fn = theano.function(
                 inputs=[
@@ -189,6 +199,18 @@ class SdA(Network):
             pretrain_fns.append(fn)
 
         return pretrain_fns
+
+    def get_finetune_cost_updates(self, learning_rate):
+        # compute the gradients with respect to the model parameters
+        gparams = T.grad(self.finetune_cost, self.params)
+
+        # compute list of fine-tuning updates
+        updates = [
+            (param, param - gparam * learning_rate)
+            for param, gparam in zip(self.params, gparams)
+        ]
+
+        return (self.finetune_cost, updates)
 
     def build_finetune_function(self):
         '''Generates a function `train` that implements one step of
@@ -211,15 +233,7 @@ class SdA(Network):
         '''
 
         learning_rate = T.scalar('lr')  # learning rate to use
-
-        # compute the gradients with respect to the model parameters
-        gparams = T.grad(self.finetune_cost, self.params)
-
-        # compute list of fine-tuning updates
-        updates = [
-            (param, param - gparam * learning_rate)
-            for param, gparam in zip(self.params, gparams)
-        ]
+        cost, updates = self.get_finetune_cost_updates(learning_rate)
 
         train_fn = theano.function(
             inputs=[
@@ -227,7 +241,7 @@ class SdA(Network):
                 self.y,
                 theano.Param(learning_rate, default=0.1)
             ],
-            outputs=self.finetune_cost,
+            outputs=cost,
             updates=updates,
             name='train'
         )

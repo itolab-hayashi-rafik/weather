@@ -13,22 +13,25 @@ from PySide import QtGui, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 
+import numpy
+
 from testbed import TestBed
 from generator import Generator
+from visualizer import Visualizer
 import utils
 
 class Worker(QtCore.QThread):
 
     started = QtCore.Signal()
-    updated = QtCore.Signal()
+    updated = QtCore.Signal(numpy.ndarray, numpy.ndarray, QtGui.QImage, QtGui.QImage)
     stopped = QtCore.Signal()
 
-    def __init__(self, scene, parent=None):
+    def __init__(self, parent=None):
         super(Worker, self).__init__(parent)
         self.bed = None
         self.gen = None
 
-        self.scene = scene
+        self.delay = 1.0
         self.stop_flg = False
         self.mutex = QtCore.QMutex()
 
@@ -36,6 +39,11 @@ class Worker(QtCore.QThread):
         self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         self.gen = Generator(w=w, h=h, d=d)
         self.pretrain_step = pretrain_step
+
+        # fill the window with data
+        for i in xrange(window_size):
+            y = self.gen.next()
+            self.bed.supply(y)
 
     def setGeneratorParams(self, k, n):
         pass
@@ -54,32 +62,37 @@ class Worker(QtCore.QThread):
             self.stop_flg = True
 
     def run(self):
+        print("Worker: started")
         with QtCore.QMutexLocker(self.mutex):
             self.stop_flg = False
         self.started.emit()
 
         for i,y in enumerate(self.gen):
-            images = utils.generateImage(y)
+            # original
+            y_images = utils.generateImage(y)
+            y_qimage = utils.PILimageToQImage(y_images[0])
+
+            # predict
+            y_pred = self.bed.predict()
+            y_pred_images = utils.generateImage(y_pred)
+            y_pred_qimage = utils.PILimageToQImage(y_pred_images[0])
+            print("{}: y={}, y_pred={}".format(i, y, y_pred))
+
+            self.bed.supply(y)
 
             if i % self.pretrain_step == 0:
                 # pretrain
                 avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr)
                 print("   pretrain cost: {}".format(avg_cost))
-
-            # predict
-            y_pred = self.bed.predict()
-            print("{}: y={}, y_pred={}".format(i, y, y_pred))
-            self.scene.addPixMap(images[0])
+                pass
 
             # finetune
-            self.bed.supply(y)
             avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr)
-            # bed.finetune(100, finetunning_lr=0.01)
-            # bed.finetune(100, finetunning_lr=0.001)
             print("   train cost: {}".format(avg_cost))
-            time.sleep(self.delay)
 
-            self.updated.emit()
+            self.updated.emit(y, y_pred, y_qimage, y_pred_qimage)
+
+            time.sleep(self.delay)
 
             if self.stop_flg:
                 print(' --- iteration end ---')
@@ -93,8 +106,15 @@ class Window(QtGui.QDialog):
 
         # this is the Canvas Widget that displays the `figure`
         # it takes the `figure` instance as a parameter to __init__
+        self.vis = Visualizer()
+        self.canvas = FigureCanvas(self.vis.getFigure())
+
         self.scene = QtGui.QGraphicsScene(self)
         self.grview = QtGui.QGraphicsView(self.scene, self)
+        self.grview.scale(10.0,10.0)
+        self.scene_pred = QtGui.QGraphicsScene(self)
+        self.grview_pred = QtGui.QGraphicsView(self.scene_pred, self)
+        self.grview_pred.scale(10.0,10.0)
 
         # this is the Navigation widget
         # it takes the Canvas widget and a parent
@@ -164,16 +184,18 @@ class Window(QtGui.QDialog):
         # set the layout
         layout = QtGui.QGridLayout()
         # layout.addWidget(self.toolbar)
-        layout.addWidget(self.grview, 0, 0, 1, 2)
-        layout.addLayout(self.input_form, 1, 0, 1, 1)
-        layout.addLayout(self.learn_form, 1, 1, 1, 1)
-        layout.addWidget(self.slider, 2, 0)
-        layout.addWidget(self.start_stop_button, 2, 1)
+        layout.addWidget(self.canvas, 0, 0, 1, 2)
+        layout.addWidget(self.grview, 1, 0)
+        layout.addWidget(self.grview_pred, 1, 1)
+        layout.addLayout(self.input_form, 2, 0)
+        layout.addLayout(self.learn_form, 2, 1)
+        layout.addWidget(self.slider, 3, 0)
+        layout.addWidget(self.start_stop_button, 3, 1)
         self.setLayout(layout)
 
         # setup worker
         self.need_setup = True
-        self.worker = Worker(self.scene)
+        self.worker = Worker()
 
         # setup event dispatchers
         self.worker.started.connect(self.workerStarted)
@@ -190,7 +212,7 @@ class Window(QtGui.QDialog):
         d = string.atoi(self.d_line_edit.text())
         n = string.atoi(self.n_line_edit.text())
         hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
-        hidden_layers_sizes = [string.atoi(n) for n in hidden_layers_sizes]
+        hidden_layers_sizes = [string.atoi(i) for i in hidden_layers_sizes]
 
         if self.need_setup:
             self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
@@ -207,7 +229,7 @@ class Window(QtGui.QDialog):
         self.need_setup = True
 
     def updateWorker(self):
-        self.worker.setGeneratorParams(self.getKValue(), self.getNValue())
+        # self.worker.setGeneratorParams(self.getKValue(), self.getNValue())
         self.worker.setDelay(self.getDelayValue())
         self.worker.setLearningParams(self.getLearningParams())
 
@@ -215,9 +237,14 @@ class Window(QtGui.QDialog):
         self.start_stop_button.setEnabled(True)
         self.start_stop_button.clicked.connect(self.stop)
 
-    def updateGraphics(self):
+    def updateGraphics(self, y, y_pred, y_qimage, y_pred_qimage):
         # refresh canvas
+        self.vis.append(y[0,0,0].tolist(), y_pred[0,0,0].tolist())
         self.canvas.draw()
+        y_qpixmap = QtGui.QPixmap.fromImage(y_qimage)
+        y_pred_qpixmap = QtGui.QPixmap.fromImage(y_pred_qimage)
+        self.scene.addPixmap(y_qpixmap)
+        self.scene_pred.addPixmap(y_pred_qpixmap)
 
     def workerStopped(self):
         self.start_stop_button.setEnabled(True)
@@ -235,6 +262,16 @@ class Window(QtGui.QDialog):
         return self.slider.value() / 100.0
 
 if __name__ == '__main__':
+    worker = Worker()
+    worker.setup()
+    worker.setLearningParams({
+        'pretrain_epochs': 10,
+        'pretrain_lr': 0.1,
+        'finetune_epochs': 10,
+        'finetune_lr': 0.1
+    })
+    worker.run()
+
     app = QtGui.QApplication(sys.argv)
 
     main = Window()
