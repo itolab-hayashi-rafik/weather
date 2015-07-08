@@ -40,6 +40,11 @@ class Worker(QtCore.QThread):
         self.gen = SimpleGenerator(num=m)
         self.pretrain_step = pretrain_step
 
+        # fill the window with data
+        for i in xrange(window_size):
+            y = self.gen.next()
+            self.bed.supply(y)
+
     def setGeneratorParams(self, k, n):
         if self.gen is not None:
             self.gen.setK(k)
