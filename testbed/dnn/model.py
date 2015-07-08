@@ -66,11 +66,11 @@ class SdAIndividual(object):
         :return:
         '''
         # return numpy.append([], [chunk[:,j,i] for chunk in ndata]).reshape((1, self.n*self.d))
-        # return dataset[[range(n,n+self.n) for n in idx], :, j, i].reshape((len(idx), self.n*self.d))
-        x = []
-        for n in idx:
-            x.append(numpy.append([], [chunk[:,j,i] for chunk in dataset[n:n+self.n]]))
-        return numpy.asarray(x, dtype=theano.config.floatX)
+        return dataset[[range(n,n+self.n) for n in idx], :, j, i].reshape((len(idx), self.n*self.d))
+        # x = []
+        # for n in idx:
+        #     x.append(numpy.append([], [chunk[:,j,i] for chunk in dataset[n:n+self.n]]))
+        # return numpy.asarray(x, dtype=theano.config.floatX)
 
     def _make_output(self, dataset, idx, i, j):
         '''
@@ -81,15 +81,16 @@ class SdAIndividual(object):
         :return:
         '''
         # return data[:,j,i].reshape((1, self.d))
-        y = []
-        for n in idx:
-            y.append(dataset[n+self.n][:,j,i])
-        return numpy.asarray(y, dtype=theano.config.floatX)
+        return dataset[[n+self.n for n in idx], :, j, i].reshape((len(idx), self.d))
+        # y = []
+        # for n in idx:
+        #     y.append(dataset[n+self.n][:,j,i])
+        # return numpy.asarray(y, dtype=theano.config.floatX)
 
     # def _build_pretrain_functions(self, dataset):
     #     index = T.lscalar('index')
     #     corruption_level = T.iscalar('corruption')
-    #     learning_rate = T.iscalar('lr')
+    #     learning_rate = T.scalar('lr')
     #
     #     costs = [[] for i in xrange(self.n_hidden_layers)]
     #     updates = [[] for i in xrange(self.n_hidden_layers)]
@@ -122,30 +123,26 @@ class SdAIndividual(object):
     #
     # def _build_finetune_function(self, dataset):
     #     index = T.iscalar('index')
-    #     i = T.iscalar('i')
-    #     j = T.iscalar('j')
-    #     learning_rate = T.iscalar('lr')
+    #     learning_rate = T.scalar('lr')
     #
-    #     costs = [[None for i in xrange(self.w)] for j in xrange(self.h)]
-    #     updates = [[None for i in xrange(self.w)] for j in xrange(self.h)]
+    #     costs = []
+    #     updates = []
+    #     givens = {}
     #     for j in xrange(self.h):
     #         for i in xrange(self.w):
     #             cost, update = self.dnns[j][i].get_finetune_cost_updates(learning_rate)
-    #             costs[j][i] = cost
-    #             updates[j][i] = update
+    #             costs.append(cost)
+    #             updates.extend(update)
+    #             givens[self.dnns[j][i].x] = self._make_input(dataset, [1], i, j)
+    #             givens[self.dnns[j][i].y] = self._make_output(dataset, [1], i, j)
     #
     #     fn = theano.function(
     #         inputs=[
-    #             index,
-    #             i, j,
     #             theano.Param(learning_rate, default=0.1)
     #         ],
-    #         outputs=costs[j][i],
-    #         updates=updates[j][i],
-    #         givens={
-    #             self.dnns[j][i].x: self._make_input(dataset[(index-self.n):index-1], i, j),
-    #             self.dnns[j][i].y: self._make_output(dataset[index], i, j)
-    #         },
+    #         outputs=costs,
+    #         updates=updates,
+    #         givens=givens,
     #         name='train'
     #     )
     #
@@ -156,7 +153,7 @@ class SdAIndividual(object):
         for i in xrange(len(self.sda.params)):
             self.sda.params[i].set_value(dnn.params[i].get_value(borrow=True), borrow=True)
 
-    def _pretrain_step(self, layer, dataset, index, batch_size, corruption, learning_rate):
+    def _pretrain_step(self, layer, dataset, index, corruption, learning_rate, batch_size):
         avg_cost = 0.0
 
         idx = range(index*batch_size, (index+1)*batch_size)
@@ -171,7 +168,7 @@ class SdAIndividual(object):
 
         return avg_cost
 
-    def pretrain(self, dataset, batch_size=1, epochs=100, learning_rate=0.1):
+    def pretrain(self, dataset, epochs=100, learning_rate=0.1, batch_size=1):
         '''
         pretrain the model using the dataset
         :param dataset:
@@ -188,7 +185,7 @@ class SdAIndividual(object):
             while (epoch < epochs) and not loop_done:
                 c = []
                 for minibatch_index in xrange(n_train_batches):
-                    minibatch_avg_cost = self._pretrain_step(layer, dataset, minibatch_index, batch_size, 0.0, learning_rate)
+                    minibatch_avg_cost = self._pretrain_step(layer, dataset, minibatch_index, 0.0, learning_rate, batch_size)
                     c.append(minibatch_avg_cost)
 
                 avg_cost = numpy.mean(c)
@@ -198,7 +195,7 @@ class SdAIndividual(object):
 
         return avg_cost
 
-    def _finetune_step(self, dataset, index, batch_size, learning_rate):
+    def _finetune_step(self, dataset, index, learning_rate, batch_size):
         avg_cost = 0.0
 
         idx = range(index*batch_size, (index+1)*batch_size)
@@ -214,7 +211,7 @@ class SdAIndividual(object):
 
         return avg_cost
 
-    def finetune(self, dataset, batch_size=1, epochs=100, learning_rate=0.1, patience=9):
+    def finetune(self, dataset, epochs=100, learning_rate=0.1, batch_size=1):
         '''
         finetune the model using the dataset
         :param dataset: an array of ndarray of (d-by-h-by-w) dimention, whose size is bigger than n
@@ -237,7 +234,7 @@ class SdAIndividual(object):
         while (epoch < epochs) and not loop_done:
             c = []
             for minibatch_index in xrange(n_train_batches):
-                minibatch_avg_cost = self._finetune_step(dataset, minibatch_index, batch_size, learning_rate)
+                minibatch_avg_cost = self._finetune_step(dataset, minibatch_index, learning_rate, batch_size)
                 c.append(minibatch_avg_cost)
                 iter = (epoch - 1) * n_train_batches + minibatch_index
 

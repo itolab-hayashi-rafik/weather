@@ -12,7 +12,7 @@ from dnn.model import SdAIndividual
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[100]):
+    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10]):
         '''
         初期化する
         :param window_size:
@@ -38,19 +38,29 @@ class TestBed(object):
         while self.window_size < len(self.dataset):
             self.dataset.pop(0)
 
-    def pretrain(self, epochs=100, learning_rate=0.1):
+    def pretrain(self, epochs=15, learning_rate=0.1, batch_size=1):
         '''
         現在持っているデータセットで学習する
         :return:
         '''
-        return self.model.pretrain(self.dataset, epochs=epochs, learning_rate=learning_rate)
+        return self.model.pretrain(
+            numpy.asarray(self.dataset, dtype=theano.config.floatX),
+            epochs=epochs,
+            learning_rate=learning_rate,
+            batch_size=batch_size,
+        )
 
-    def finetune(self, epochs=100, learning_rate=0.1):
+    def finetune(self, epochs=100, learning_rate=0.1, batch_size=1):
         '''
         現在持っているデータセットで学習する
         :return:
         '''
-        return self.model.finetune(self.dataset, epochs=epochs, learning_rate=learning_rate)
+        return self.model.finetune(
+            numpy.asarray(self.dataset, dtype=theano.config.floatX),
+            epochs=epochs,
+            learning_rate=learning_rate,
+            batch_size=batch_size
+        )
 
     def predict(self):
         '''
@@ -58,4 +68,6 @@ class TestBed(object):
         :param x: d-by-w-by-h 次元の ndarray のデータが n 個入った配列
         :return:
         '''
-        return self.model.predict(self.dataset)
+        return self.model.predict(
+            numpy.asarray(self.dataset, dtype=theano.config.floatX)
+        )

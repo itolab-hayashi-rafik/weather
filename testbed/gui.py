@@ -3,7 +3,6 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 
 import time
-import string
 
 import matplotlib
 matplotlib.use('Qt4Agg')
@@ -52,10 +51,12 @@ class Worker(QtCore.QThread):
         self.delay = delay
 
     def setLearningParams(self, params):
-        self.pretrain_epochs = params['pretrain_epochs']
-        self.pretrain_lr = params['pretrain_lr']
         self.finetune_epochs = params['finetune_epochs']
         self.finetune_lr = params['finetune_lr']
+        self.finetune_batch_size = params['finetune_batch_size']
+        self.pretrain_epochs = params['pretrain_epochs']
+        self.pretrain_lr = params['pretrain_lr']
+        self.pretrain_batch_size = params['pretrain_batch_size']
 
     def stop(self):
         with QtCore.QMutexLocker(self.mutex):
@@ -80,14 +81,14 @@ class Worker(QtCore.QThread):
 
             self.bed.supply(y)
 
-            if i % self.pretrain_step == 0:
+            if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
-                avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr)
+                avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr, batch_size=self.pretrain_batch_size)
                 print("   pretrain cost: {}".format(avg_cost))
                 pass
 
             # finetune
-            avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr)
+            avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr, batch_size=self.finetune_batch_size)
             print("   train cost: {}".format(avg_cost))
 
             self.updated.emit(y, y_pred, y_qimage, y_pred_qimage)
@@ -136,30 +137,36 @@ class Window(QtGui.QDialog):
 
         self.input_form = QtGui.QFormLayout()
         self.input_form.addRow('Window SIze:', self.window_size_line_edit)
-        self.input_form.addRow('w:', self.w_line_edit)
-        self.input_form.addRow('h:', self.h_line_edit)
-        self.input_form.addRow('d:', self.d_line_edit)
+        self.input_form.addRow('width:', self.w_line_edit)
+        self.input_form.addRow('height:', self.h_line_edit)
+        self.input_form.addRow('depth:', self.d_line_edit)
         self.input_form.addRow('n:', self.n_line_edit)
         self.input_form.addRow('Hidden Layer Sizes:', self.hidden_layer_sizes_line_edit)
 
-        self.pretrian_epochs_line_edit = QtGui.QLineEdit('0')
-        self.pretrian_epochs_line_edit.textChanged.connect(self.updateWorker)
+        self.pretrain_epochs_line_edit = QtGui.QLineEdit('0')
+        self.pretrain_epochs_line_edit.textChanged.connect(self.updateWorker)
         self.pretrain_lr_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self.pretrain_lr_slider.setRange(1, 10)
         self.pretrain_lr_slider.setValue(1)
         self.pretrain_lr_slider.valueChanged.connect(self.updateWorker)
+        self.pretrain_batch_size_line_edit = QtGui.QLineEdit('1')
+        self.pretrain_batch_size_line_edit.textChanged.connect(self.updateWorker)
         self.finetune_epochs_line_edit = QtGui.QLineEdit('10')
         self.finetune_epochs_line_edit.textChanged.connect(self.updateWorker)
         self.finetune_lr_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self.finetune_lr_slider.setRange(1, 10)
         self.finetune_lr_slider.setValue(1)
         self.finetune_lr_slider.valueChanged.connect(self.updateWorker)
+        self.finetune_batch_size_line_edit = QtGui.QLineEdit('1')
+        self.finetune_batch_size_line_edit.textChanged.connect(self.updateWorker)
 
         self.learn_form = QtGui.QFormLayout()
         self.learn_form.addRow('finetune_epoch', self.finetune_epochs_line_edit)
         self.learn_form.addRow('finetune_lr', self.finetune_lr_slider)
-        self.learn_form.addRow('pretrain_epoch', self.pretrian_epochs_line_edit)
+        self.learn_form.addRow('finetune_batch_size', self.finetune_batch_size_line_edit)
+        self.learn_form.addRow('pretrain_epoch', self.pretrain_epochs_line_edit)
         self.learn_form.addRow('pretrain_lr', self.pretrain_lr_slider)
+        self.learn_form.addRow('pretrain_batch_size', self.pretrain_batch_size_line_edit)
 
         # A slider to control the plot delay
         self.slider = QtGui.QSlider(QtCore.Qt.Horizontal)
@@ -206,13 +213,13 @@ class Window(QtGui.QDialog):
         self.start_stop_button.setText('Stop')
         self.start_stop_button.setEnabled(False)
 
-        window_size = string.atoi(self.window_size_line_edit.text())
-        w = string.atoi(self.w_line_edit.text())
-        h = string.atoi(self.h_line_edit.text())
-        d = string.atoi(self.d_line_edit.text())
-        n = string.atoi(self.n_line_edit.text())
+        window_size = int(self.window_size_line_edit.text())
+        w = int(self.w_line_edit.text())
+        h = int(self.h_line_edit.text())
+        d = int(self.d_line_edit.text())
+        n = int(self.n_line_edit.text())
         hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
-        hidden_layers_sizes = [string.atoi(i) for i in hidden_layers_sizes]
+        hidden_layers_sizes = [int(i) for i in hidden_layers_sizes]
 
         if self.need_setup:
             self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
@@ -252,10 +259,12 @@ class Window(QtGui.QDialog):
 
     def getLearningParams(self):
         return {
-            'pretrain_epochs': string.atoi(self.pretrian_epochs_line_edit.text()),
+            'finetune_epochs': int(self.finetune_epochs_line_edit.text()),
+            'finetune_lr': 1.0/pow(10, self.finetune_lr_slider.value()),
+            'finetune_batch_size': int(self.finetune_batch_size_line_edit.text()),
+            'pretrain_epochs': int(self.pretrain_epochs_line_edit.text()),
             'pretrain_lr': 1.0/pow(10, self.pretrain_lr_slider.value()),
-            'finetune_epochs': string.atoi(self.finetune_epochs_line_edit.text()),
-            'finetune_lr': 1.0/pow(10, self.finetune_lr_slider.value())
+            'pretrain_batch_size': int(self.pretrain_batch_size_line_edit.text()),
         }
 
     def getDelayValue(self):
@@ -267,8 +276,10 @@ if __name__ == '__main__':
     # worker.setLearningParams({
     #     'pretrain_epochs': 10,
     #     'pretrain_lr': 0.1,
+    #     'pretrain_batch_size': 1,
     #     'finetune_epochs': 10,
     #     'finetune_lr': 0.1
+    #     'finetune_batch_size': 1
     # })
     # worker.run()
 
