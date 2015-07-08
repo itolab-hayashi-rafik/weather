@@ -10,17 +10,25 @@ class ObservationLocation:
         self.xy = xy
         self.fig = plt.figure(fignum)
         self.fig.canvas.mpl_connect('close_event', handle_close)
+        self.ax = plt.subplot(111)
 
         x, y = self.xy
-        self.plot_y = plt.plot(self.vis.data_x, [ data[0,y,x] for data in self.vis.data_y ], 'b.-')
-        self.plot_y_pred = plt.plot(self.vis.data_x, [ data[0,y,x] for data in self.vis.data_y_pred ], 'r.-')
+        data_y = [ data[0,y,x] for data in self.vis.data_y ]
+        data_y_pred = [ data[0,y,x] for data in self.vis.data_y_pred ]
+        self.plot_y = self.ax.plot(self.vis.data_x, data_y, 'b.-')
+        self.plot_y_pred = self.ax.plot(self.vis.data_x, data_y_pred, 'r.-')
 
         plt.show()
 
     def update(self):
         x, y = self.xy
-        self.plot_y[0].set_data(self.vis.data_x, [ data[0,y,x] for data in self.vis.data_y ])
-        self.plot_y_pred[0].set_data(self.vis.data_x, [ data[0,y,x] for data in self.vis.data_y_pred ])
+        data_y = [ data[0,y,x] for data in self.vis.data_y ]
+        data_y_pred = [ data[0,y,x] for data in self.vis.data_y_pred ]
+        self.plot_y[0].set_data(self.vis.data_x, data_y)
+        self.plot_y_pred[0].set_data(self.vis.data_x, data_y_pred)
+        self.ax.set_xlim(self.vis.data_x[0], self.vis.data_x[-1])
+        self.ax.set_ylim(min(numpy.min(data_y), numpy.min(data_y_pred)), max(numpy.max(data_y), numpy.max(data_y_pred)))
+        self.ax.autoscale_view(scalex=False,scaley=True)
         self.fig.canvas.draw()
 
 class Visualizer:
