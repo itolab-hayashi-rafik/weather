@@ -22,7 +22,7 @@ import utils
 class Worker(QtCore.QThread):
 
     started = QtCore.Signal()
-    updated = QtCore.Signal(numpy.ndarray, numpy.ndarray, QtGui.QImage, QtGui.QImage)
+    updated = QtCore.Signal(numpy.ndarray, numpy.ndarray)
     stopped = QtCore.Signal()
 
     def __init__(self, parent=None):
@@ -69,14 +69,8 @@ class Worker(QtCore.QThread):
         self.started.emit()
 
         for i,y in enumerate(self.gen):
-            # original
-            y_images = utils.generateImage(y)
-            y_qimage = utils.PILimageToQImage(y_images[0])
-
             # predict
             y_pred = self.bed.predict()
-            y_pred_images = utils.generateImage(y_pred)
-            y_pred_qimage = utils.PILimageToQImage(y_pred_images[0])
             print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
             self.bed.supply(y)
@@ -91,7 +85,7 @@ class Worker(QtCore.QThread):
             avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr, batch_size=self.finetune_batch_size)
             print("   train cost: {}".format(avg_cost))
 
-            self.updated.emit(y, y_pred, y_qimage, y_pred_qimage)
+            self.updated.emit(y, y_pred)
 
             time.sleep(self.delay)
 
@@ -104,22 +98,6 @@ class Worker(QtCore.QThread):
 class Window(QtGui.QDialog):
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
-
-        # this is the Canvas Widget that displays the `figure`
-        # it takes the `figure` instance as a parameter to __init__
-        self.vis = Visualizer()
-        self.canvas = FigureCanvas(self.vis.getFigure())
-
-        self.scene = QtGui.QGraphicsScene(self)
-        self.grview = QtGui.QGraphicsView(self.scene, self)
-        self.grview.scale(10.0,10.0)
-        self.scene_pred = QtGui.QGraphicsScene(self)
-        self.grview_pred = QtGui.QGraphicsView(self.scene_pred, self)
-        self.grview_pred.scale(10.0,10.0)
-
-        # this is the Navigation widget
-        # it takes the Canvas widget and a parent
-        # self.toolbar = NavigationToolbar(self.canvas, self)
 
         # Form
         self.window_size_line_edit = QtGui.QLineEdit('10')
@@ -191,13 +169,10 @@ class Window(QtGui.QDialog):
         # set the layout
         layout = QtGui.QGridLayout()
         # layout.addWidget(self.toolbar)
-        layout.addWidget(self.canvas, 0, 0, 1, 2)
-        layout.addWidget(self.grview, 1, 0)
-        layout.addWidget(self.grview_pred, 1, 1)
-        layout.addLayout(self.input_form, 2, 0)
-        layout.addLayout(self.learn_form, 2, 1)
-        layout.addWidget(self.slider, 3, 0)
-        layout.addWidget(self.start_stop_button, 3, 1)
+        layout.addLayout(self.input_form, 0, 0)
+        layout.addLayout(self.learn_form, 0, 1)
+        layout.addWidget(self.slider, 1, 0)
+        layout.addWidget(self.start_stop_button, 1, 1)
         self.setLayout(layout)
 
         # setup worker
@@ -220,6 +195,8 @@ class Window(QtGui.QDialog):
         n = int(self.n_line_edit.text())
         hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
         hidden_layers_sizes = [int(i) for i in hidden_layers_sizes]
+
+        self.vis = Visualizer(w=w, h=h)
 
         if self.need_setup:
             self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
@@ -244,14 +221,8 @@ class Window(QtGui.QDialog):
         self.start_stop_button.setEnabled(True)
         self.start_stop_button.clicked.connect(self.stop)
 
-    def updateGraphics(self, y, y_pred, y_qimage, y_pred_qimage):
-        # refresh canvas
-        self.vis.append(y[0,0,0].tolist(), y_pred[0,0,0].tolist())
-        self.canvas.draw()
-        y_qpixmap = QtGui.QPixmap.fromImage(y_qimage)
-        y_pred_qpixmap = QtGui.QPixmap.fromImage(y_pred_qimage)
-        self.scene.addPixmap(y_qpixmap)
-        self.scene_pred.addPixmap(y_pred_qpixmap)
+    def updateGraphics(self, y, y_pred):
+        self.vis.append(y, y_pred)
 
     def workerStopped(self):
         self.start_stop_button.setEnabled(True)
