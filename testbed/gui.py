@@ -37,6 +37,7 @@ class Worker(QtCore.QThread):
     def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10], pretrain_step=20):
         self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         self.gen = Generator(w=w, h=h, d=d)
+        self.vis = Visualizer(w=w, h=h)
         self.pretrain_step = pretrain_step
 
         # fill the window with data
@@ -74,6 +75,7 @@ class Worker(QtCore.QThread):
             print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
             self.bed.supply(y)
+            self.vis.append(y, y_pred)
 
             if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
@@ -196,7 +198,7 @@ class Window(QtGui.QDialog):
         hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
         hidden_layers_sizes = [int(i) for i in hidden_layers_sizes]
 
-        self.vis = Visualizer(w=w, h=h)
+        # self.vis = Visualizer(w=w, h=h)
 
         if self.need_setup:
             self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
@@ -222,7 +224,8 @@ class Window(QtGui.QDialog):
         self.start_stop_button.clicked.connect(self.stop)
 
     def updateGraphics(self, y, y_pred):
-        self.vis.append(y, y_pred)
+        # self.vis.append(y, y_pred)
+        pass
 
     def workerStopped(self):
         self.start_stop_button.setEnabled(True)
