@@ -65,8 +65,8 @@ class SdA(Network):
         if not theano_rng:
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
         # allocate symbolic variables for the data
-        self.x = T.dmatrix('x')  # the data is presented as rasterized images
-        self.y = T.dmatrix('y')  # the labels are presented as 1D vector of
+        self.x = T.matrix('x')  # the data is presented as rasterized images
+        self.y = T.matrix('y')  # the labels are presented as 1D vector of
                                  # [int] labels
         # end-snippet-1
 
@@ -249,7 +249,7 @@ class SdA(Network):
         return train_fn
 
     def build_prediction_function(self):
-        x = T.dmatrix('x')
+        x = T.matrix('x')
         return theano.function(
             [x],
             outputs=self.y_pred,
