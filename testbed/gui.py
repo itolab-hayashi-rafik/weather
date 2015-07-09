@@ -204,6 +204,7 @@ class Window(QtGui.QDialog):
             self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
             self.need_setup = False
         self.updateWorker()
+        # self.worker.run() # use this for debugging
         self.worker.start()
 
     def stop(self):
@@ -245,18 +246,6 @@ class Window(QtGui.QDialog):
         return self.slider.value() / 100.0
 
 if __name__ == '__main__':
-    # worker = Worker()
-    # worker.setup()
-    # worker.setLearningParams({
-    #     'pretrain_epochs': 10,
-    #     'pretrain_lr': 0.1,
-    #     'pretrain_batch_size': 1,
-    #     'finetune_epochs': 10,
-    #     'finetune_lr': 0.1
-    #     'finetune_batch_size': 1
-    # })
-    # worker.run()
-
     app = QtGui.QApplication(sys.argv)
 
     main = Window()
