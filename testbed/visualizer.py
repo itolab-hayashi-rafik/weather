@@ -9,6 +9,7 @@ class ObservationLocation:
         self.vis = vis
         self.xy = xy
         self.fig = plt.figure(fignum)
+        plt.clf()
         self.fig.canvas.mpl_connect('close_event', handle_close)
         self.ax = plt.subplot(111)
 
@@ -40,6 +41,7 @@ class Visualizer:
 
         # y
         self.fig_y = plt.figure(1)
+        plt.clf()
         self.fig_y.canvas.mpl_connect('button_press_event', self.onclick)
         self.im_y = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
         self.colorbar_y = plt.colorbar()
@@ -47,6 +49,7 @@ class Visualizer:
 
         # y_pred
         self.fig_y_pred = plt.figure(2)
+        plt.clf()
         self.fig_y_pred.canvas.mpl_connect('button_press_event', self.onclick)
         self.im_y_pred = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
         self.colorbar_y_pred = plt.colorbar()

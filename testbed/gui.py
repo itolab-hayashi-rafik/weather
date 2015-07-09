@@ -72,7 +72,7 @@ class Worker(QtCore.QThread):
         for i,y in enumerate(self.gen):
             # predict
             y_pred = self.bed.predict()
-            print("{}: y={}, y_pred={}".format(i, y, y_pred))
+            #print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
             self.bed.supply(y)
             self.vis.append(y, y_pred)
