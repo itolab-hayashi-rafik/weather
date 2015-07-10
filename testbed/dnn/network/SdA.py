@@ -246,7 +246,16 @@ class SdA(Network):
             name='train'
         )
 
-        return train_fn
+        validate_fn = theano.function(
+            inputs=[
+                self.x,
+                self.y
+            ],
+            outputs=self.errors,
+            name='validate'
+        )
+
+        return (train_fn, validate_fn)
 
     def build_prediction_function(self):
         x = T.matrix('x')
