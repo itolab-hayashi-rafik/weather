@@ -30,8 +30,8 @@ class TestBed(object):
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
         numpy_rng = numpy.random.RandomState(89677)
-        # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
 
     def supply(self, data):
         self.dataset.append(data)
@@ -55,8 +55,15 @@ class TestBed(object):
         現在持っているデータセットで学習する
         :return:
         '''
+        idx = range(self.window_size-self.n)
+        numpy.random.shuffle(idx)
+        cut = int(0.8*len(idx))
+        train_idx = idx[:cut]
+        valid_idx = idx[cut:]
         return self.model.finetune(
             numpy.asarray(self.dataset, dtype=theano.config.floatX),
+            train_idx=train_idx,
+            valid_idx=valid_idx,
             epochs=epochs,
             learning_rate=learning_rate,
             batch_size=batch_size

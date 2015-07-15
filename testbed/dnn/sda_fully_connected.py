@@ -32,7 +32,7 @@ class SdAFullyConnected(Model):
         print('done')
 
         print('SdAIndividual: building finetune function...'),
-        self.finetune_fn = self.sda.build_finetune_function()
+        self.finetune_fn, self.validate_fn = self.sda.build_finetune_function()
         print('done')
 
         print('SdAIndividual: building predict function...'),
@@ -94,10 +94,9 @@ class SdAFullyConnected(Model):
 
         return avg_cost
 
-    def _finetune_step(self, dataset, index, learning_rate, batch_size):
+    def _finetune_step(self, dataset, idx, learning_rate):
         avg_cost = 0.0
 
-        idx = range(index*batch_size, (index+1)*batch_size)
         xdata = self._make_input(dataset, idx)
         ydata = self._make_output(dataset, idx)
         cost = self.finetune_fn(xdata, ydata, lr=learning_rate)
@@ -107,13 +106,13 @@ class SdAFullyConnected(Model):
 
         return avg_cost
 
-    def finetune(self, dataset, epochs=100, learning_rate=0.1, batch_size=1):
+    def finetune(self, dataset, train_idx, valid_idx, epochs=100, learning_rate=0.1, batch_size=1):
         '''
         finetune the model using the dataset
         :param dataset: an array of ndarray of (d-by-h-by-w) dimention, whose size is bigger than n
         :return:
         '''
-        n_train_batches = (len(dataset) - self.n) / batch_size
+        n_train_batches = len(train_idx) / batch_size
 
         # early-stopping parameters
         patience = 10 * n_train_batches  # look as this many examples regardless
@@ -123,38 +122,39 @@ class SdAFullyConnected(Model):
 
         best_validation_loss = numpy.inf
 
-        loop_done = False
+        done_looping = False
         epoch = 0
 
         avg_cost = numpy.inf
-        while (epoch < epochs) and not loop_done:
+        while (epoch < epochs) and not done_looping:
             c = []
             for minibatch_index in xrange(n_train_batches):
-                minibatch_avg_cost = self._finetune_step(dataset, minibatch_index, learning_rate, batch_size)
+                idx = train_idx[minibatch_index*batch_size:(minibatch_index+1)*batch_size]
+                minibatch_avg_cost = self._finetune_step(dataset, idx, learning_rate)
                 c.append(minibatch_avg_cost)
                 iter = (epoch - 1) * n_train_batches + minibatch_index
 
-                # FIXME: early-stop 実装
-                # if (iter + 1) % validation_frequency == 0:
-                #     validation_losses = validate_model()
-                #     this_validation_loss = numpy.mean(validation_losses)
-                #     print('epoch %i, minibatch %i/%i, validation error %f %%' %
-                #           (epoch, minibatch_index + 1, n_train_batches,
-                #            this_validation_loss * 100.))
-                #
-                #     # if we got the best validation score until now
-                #     if this_validation_loss < best_validation_loss:
-                #
-                #         #improve patience if loss improvement is good enough
-                #         if (
-                #                     this_validation_loss < best_validation_loss *
-                #                     improvement_threshold
-                #         ):
-                #             patience = max(patience, iter * patience_increase)
-                #
-                #         # save best validation score and iteration number
-                #         best_validation_loss = this_validation_loss
-                #         best_iter = iter
+                # early-stop
+                if (iter + 1) % validation_frequency == 0:
+                    validation_losses = self.validate(dataset, valid_idx, batch_size)
+                    this_validation_loss = numpy.mean(validation_losses)
+                    print('epoch %i, minibatch %i/%i, validation error %f %%' %
+                          (epoch, minibatch_index + 1, n_train_batches,
+                           this_validation_loss * 100.))
+
+                    # if we got the best validation score until now
+                    if this_validation_loss < best_validation_loss:
+
+                        #improve patience if loss improvement is good enough
+                        if (
+                                    this_validation_loss < best_validation_loss *
+                                    improvement_threshold
+                        ):
+                            patience = max(patience, iter * patience_increase)
+
+                        # save best validation score and iteration number
+                        best_validation_loss = this_validation_loss
+                        best_iter = iter
 
                 if patience <= iter:
                     done_looping = True
@@ -167,8 +167,20 @@ class SdAFullyConnected(Model):
 
         return avg_cost
 
-    def train(self, dataset, epochs=100, learning_rate=0.1, batch_size=1):
-        return self.finetune(dataset, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size)
+    def validate(self, dataset, valid_idx, batch_size):
+        n_validate_batches = len(valid_idx) / batch_size
+
+        costs = []
+        for minibatch_index in xrange(n_validate_batches):
+            idx = valid_idx[minibatch_index*batch_size:(minibatch_index+1)*batch_size]
+            xdata = self._make_input(dataset, idx)
+            ydata = self._make_output(dataset, idx)
+            costs.append(self.validate_fn(xdata, ydata))
+
+        return costs
+
+    def train(self, dataset, train_idx, valid_idx, epochs=100, learning_rate=0.1, batch_size=1):
+        return self.finetune(dataset, train_idx, valid_idx, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size)
 
     def predict(self, dataset):
         '''
