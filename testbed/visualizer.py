@@ -1,6 +1,8 @@
 import numpy
 import pylab as plt
 
+VIS_DEPTH = 0
+
 class ObservationLocation:
     def __init__(self, vis, xy, fignum, onclose):
         def handle_close(event):
@@ -14,8 +16,8 @@ class ObservationLocation:
         self.ax = plt.subplot(111)
 
         x, y = self.xy
-        data_y = [ data[0,y,x] for data in self.vis.data_y ]
-        data_y_pred = [ data[0,y,x] for data in self.vis.data_y_pred ]
+        data_y = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y ]
+        data_y_pred = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y_pred ]
         self.plot_y = self.ax.plot(self.vis.data_x, data_y, 'b.-')
         self.plot_y_pred = self.ax.plot(self.vis.data_x, data_y_pred, 'r.-')
 
@@ -23,8 +25,8 @@ class ObservationLocation:
 
     def update(self):
         x, y = self.xy
-        data_y = [ data[0,y,x] for data in self.vis.data_y ]
-        data_y_pred = [ data[0,y,x] for data in self.vis.data_y_pred ]
+        data_y = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y ]
+        data_y_pred = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y_pred ]
         self.plot_y[0].set_data(self.vis.data_x, data_y)
         self.plot_y_pred[0].set_data(self.vis.data_x, data_y_pred)
         self.ax.set_xlim(self.vis.data_x[0], self.vis.data_x[-1])
@@ -88,11 +90,11 @@ class Visualizer:
 
     def update(self):
         # y
-        self.im_y.set_data(self.data_y[-1][0])
+        self.im_y.set_data(self.data_y[-1][VIS_DEPTH])
         self.fig_y.canvas.draw()
 
         # y_pred
-        self.im_y_pred.set_data(self.data_y_pred[-1][0])
+        self.im_y_pred.set_data(self.data_y_pred[-1][VIS_DEPTH])
         self.fig_y_pred.canvas.draw()
 
         # timeseries
