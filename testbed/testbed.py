@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import sys
+sys.path.append('/usr/local/lib/python2.7/site-packages')
 
 import time
 import string
@@ -8,6 +10,7 @@ import theano
 from theano import tensor as T
 
 import dnn
+from generator import Generator
 import utils
 
 class TestBed(object):
@@ -30,8 +33,8 @@ class TestBed(object):
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
         numpy_rng = numpy.random.RandomState(89677)
-        self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
 
     def supply(self, data):
         self.dataset.append(data)
@@ -78,3 +81,32 @@ class TestBed(object):
         return self.model.predict(
             numpy.asarray(self.dataset, dtype=theano.config.floatX)
         )
+
+
+if __name__ == '__main__':
+    bed = TestBed()
+    gen = Generator(w=bed.w, h=bed.h, d=bed.d)
+
+    # fill the window with data
+    for i in xrange(bed.window_size):
+        y = gen.next()
+        bed.supply(y)
+
+    for i,y in enumerate(gen):
+        # predict
+        y_pred = bed.predict()
+        #print("{}: y={}, y_pred={}".format(i, y, y_pred))
+
+        bed.supply(y)
+
+        # if i % pretrain_step == 0 and 0 < self.pretrain_epochs:
+        #     # pretrain
+        #     avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr, batch_size=self.pretrain_batch_size)
+        #     print("   pretrain cost: {}".format(avg_cost))
+        #     pass
+
+        # finetune
+        avg_cost = bed.finetune()
+        print(" finetune {}, train cost: {}".format(i,avg_cost))
+
+        time.sleep(1)
