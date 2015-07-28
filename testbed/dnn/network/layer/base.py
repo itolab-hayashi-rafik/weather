@@ -6,7 +6,7 @@ from numpy.random import RandomState
 from theano.tensor.shared_randomstreams import RandomStreams
 
 class Layer(object):
-    def __init__(self, input, n_in, n_out, activation=T.tanh, **kwargs):
+    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, **kwargs):
         """
         Typical hidden layer of a MLP: units are fully-connected and have
         sigmoidal activation function. Weight matrix W is of shape (n_in,n_out)
@@ -42,6 +42,7 @@ class Layer(object):
         self.n_in = n_in
         self.n_out = n_out
         self.activation = activation
+        self.clip_gradients = clip_gradients
 
         # setup variables
         self.setup()
