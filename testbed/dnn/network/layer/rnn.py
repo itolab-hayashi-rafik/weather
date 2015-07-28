@@ -33,8 +33,8 @@ class ElmanRNN(RNN):
     Elman Recurrent Neural Network
     """
     def __init__(self, *args, **kwargs):
-        super(ElmanRNN, self).__init__(*args, **kwargs)
         self.n_hidden = kwargs.get('n_hidden')
+        super(ElmanRNN, self).__init__(*args, **kwargs)
 
     def setup(self):
         # recurrent weights as a shared variable
