@@ -10,8 +10,8 @@ class RNN(base.Layer):
     """
     Recurrent Neural Network
     """
-    def __init__(self, *args, **kwargs):
-        super(RNN, self).__init__(*args, **kwargs)
+    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False):
+        super(RNN, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients)
         self.is_recursive = True
 
     def setup(self):
@@ -32,9 +32,9 @@ class ElmanRNN(RNN):
     """
     Elman Recurrent Neural Network
     """
-    def __init__(self, *args, **kwargs):
-        self.n_hidden = kwargs.get('n_hidden')
-        super(ElmanRNN, self).__init__(*args, **kwargs)
+    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False):
+        self.n_hidden = n_hidden
+        super(ElmanRNN, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients)
 
     def setup(self):
         # recurrent weights as a shared variable
