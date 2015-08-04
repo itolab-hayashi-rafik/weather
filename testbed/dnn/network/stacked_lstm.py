@@ -7,9 +7,12 @@ from base import Network
 from layer.lstm import LSTM
 from layer.linear_regression import LinearRegression
 
+import testbed.dnn.optimizers as O
+
 class StackedLSTM(Network):
     '''
     an implementation of Stacked LSTM
+    see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     '''
     def __init__(
             self,
@@ -50,6 +53,7 @@ class StackedLSTM(Network):
             else:
                 input = self.lstm_layers[-1].output
 
+            # build an LSTM layer
             layer = LSTM(input=input,
                          n_in=input_size,
                          n_hidden=0,
@@ -59,7 +63,7 @@ class StackedLSTM(Network):
 
             self.params.extend(layer.params)
 
-        # We now need to add a logistic layer on top of the MLP
+        # We now need to add a logistic layer on top of the Stacked LSTM
         self.linLayer = LinearRegression(
             rng=numpy_rng,
             input=self.lstm_layers[-1].output,
@@ -70,15 +74,35 @@ class StackedLSTM(Network):
 
         self.params.extend(self.linLayer.params)
 
-        self.finetune_cost = 0 # FIXME
-        self.errors = 0 # FIXME
-        self.y_pred = 0 # FIXME
+        self.errors = self.linLayer.errors(self.y)
+        self.finetune_cost = self.errors
+        self.y_pred = self.linLayer.output
 
-    def build_finetune_function(self):
+    def build_finetune_function(self, optimizer=O.adadelta):
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
+        learning_rate = T.scalar('lr', dtype=theano.config.floatX)
+
         # TODO implement this
+        def step(x, *prev_hiddens):
+            new_states = [lstm.output for lstm in self.lstm_layers]
+            return [x] + new_states # FIXME: is this correct?
+
+        result, updates = theano.scan(
+            step,
+            n_steps=n_timesteps,
+            outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, dim_proj),
+                          T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, dim_proj)]
+        )
+
+        cost = (result[0] - self.y).norm(L=2) / n_timesteps
+        grads = T.grad(cost, self.params)
+
+        f_grad_shared, f_updates = optimizer(learning_rate, self.params, grads,
+                                             self.x, self.mask, self.y, cost) # FIXME: self.mask
+
+        return (f_grad_shared, f_updates)
 
     def build_prediction_function(self):
         x = T.matrix('x')
@@ -88,4 +112,4 @@ class StackedLSTM(Network):
             givens={
                 self.x: x
             }
-        )
+        ) # FIXME: is this correct? what about self.mask??

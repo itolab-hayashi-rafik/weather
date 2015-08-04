@@ -557,7 +557,7 @@ def train_lstm(
 
                 # Select the random examples for this minibatch
                 y = [train[1][t] for t in train_index]
-                x = [train[0][t]for t in train_index]
+                x = [train[0][t] for t in train_index]
 
                 # Get the data in numpy.ndarray format
                 # This swap the axis!

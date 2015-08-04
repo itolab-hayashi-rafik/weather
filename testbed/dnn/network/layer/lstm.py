@@ -87,3 +87,11 @@ class LSTM(RNN):
             return T.concatenate([next_c, next_h], axis=1)
         else:
             return T.concatenate([next_c, next_h])
+
+    @property
+    def output_y(self):
+        return self.output[:self.n_out]
+
+    @property
+    def output_h(self):
+        return self.output[self.n_out:]
