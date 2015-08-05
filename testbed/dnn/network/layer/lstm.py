@@ -10,9 +10,9 @@ class LSTM(RNN):
     LSTM
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     """
-    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False):
+    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False, **kwargs):
         self.n_hidden = n_hidden
-        super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients)
+        super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, **kwargs)
 
     def setup(self):
         # store the memory cells in first n spots, and store the current

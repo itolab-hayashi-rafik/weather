@@ -24,6 +24,8 @@ class StackedLSTM(Network):
     ):
         super(StackedLSTM, self).__init__()
 
+        self.n_ins = n_ins
+        self.n_outs = n_outs
         self.lstm_layers = []
         self.params = []
         self.n_layers = len(hidden_layers_sizes)
@@ -34,8 +36,9 @@ class StackedLSTM(Network):
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
 
         # allocate symbolic variables for the data
-        self.x = T.matrix('x')  # the data is presented as rasterized images
-        self.y = T.matrix('y')  # the regression is presented as real values
+        self.x = T.matrix('x', dtype=theano.config.floatX)  # the data is presented as rasterized images
+        self.mask = T.matrix('mask', dtype=theano.config.floatX)
+        self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
         # end-snippet-1
 
         # construct hidden layers
@@ -56,20 +59,23 @@ class StackedLSTM(Network):
             # build an LSTM layer
             layer = LSTM(input=input,
                          n_in=input_size,
-                         n_hidden=0,
+                         n_hidden=0, # FIXME
                          n_out=hidden_layers_sizes[i],
-                         nrng=numpy_rng)
+                         activation=T.tanh,
+                         nrng=numpy_rng,
+                         trng=theano_rng)
             self.lstm_layers.append(layer)
 
             self.params.extend(layer.params)
 
         # We now need to add a logistic layer on top of the Stacked LSTM
         self.linLayer = LinearRegression(
-            rng=numpy_rng,
             input=self.lstm_layers[-1].output,
             n_in=hidden_layers_sizes[-1],
             n_out=n_outs,
-            activation=T.tanh
+            activation=T.tanh,
+            nrng=numpy_rng,
+            trng=theano_rng,
         )
 
         self.params.extend(self.linLayer.params)
@@ -84,7 +90,6 @@ class StackedLSTM(Network):
 
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        # TODO implement this
         def step(x, *prev_hiddens):
             new_states = [lstm.output for lstm in self.lstm_layers]
             return [x] + new_states # FIXME: is this correct?
@@ -92,24 +97,22 @@ class StackedLSTM(Network):
         result, updates = theano.scan(
             step,
             n_steps=n_timesteps,
-            outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, dim_proj),
-                          T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, dim_proj)]
+            outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
+                          T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
         )
 
         cost = (result[0] - self.y).norm(L=2) / n_timesteps
         grads = T.grad(cost, self.params)
 
-        f_grad_shared, f_updates = optimizer(learning_rate, self.params, grads,
-                                             self.x, self.mask, self.y, cost) # FIXME: self.mask
+        f_validate = theano.function([self.x, self.mask, self.y], cost)
 
-        return (f_grad_shared, f_updates)
+        f_grad_shared, f_update = optimizer(learning_rate, self.params, grads,
+                                            self.x, self.mask, self.y, cost)
+
+        return (f_grad_shared, f_update, f_validate)
 
     def build_prediction_function(self):
-        x = T.matrix('x')
         return theano.function(
-            [x],
-            outputs=self.y_pred,
-            givens={
-                self.x: x
-            }
-        ) # FIXME: is this correct? what about self.mask??
+            [self.x, self.mask],
+            outputs=self.y_pred
+        )
