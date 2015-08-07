@@ -89,13 +89,13 @@ class StackedLSTM(Network):
 
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        def step(x):
+        def step(m, x):
             new_states = [lstm.output for lstm in self.lstm_layers]
             return [x] + new_states # FIXME: is this correct?
 
         result, updates = theano.scan(
             step,
-            sequences=[self.mask, self.x], # FIXME: is this correct?
+            sequences=[self.mask, self.x],
             n_steps=n_timesteps,
             outputs_info=None # FIXME: can output_info be None?
             # outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),

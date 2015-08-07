@@ -1,3 +1,6 @@
+'''
+see: https://github.com/JonathanRaiman/theano_lstm/issues/8
+'''
 import numpy as np
 import theano
 import theano.tensor as T
@@ -60,8 +63,8 @@ def main():
         for i, (example, label) in enumerate(zip(examples, labels)):
             c = update_func(example, label)
             if i % 100 == 0:
-                print("."),
-            print()
+                print(""),
+            print("")
 
     test_cases = [np.array([-1, 1, 0, 1, -2, 0, 1, 0, 2, 0], dtype=theano.config.floatX),
                   np.array([2, 2, 2, 0, 0, 0], dtype=theano.config.floatX),
@@ -72,10 +75,10 @@ def main():
 
 
     for example in test_cases:
-        print("input", "\toutput")
+        print("input\toutput")
         for x, pred in zip(example, predict_func(example)):
-            print(x, "{:.3f}".format(pred))
-            print()
+            print("{}\t{:.3f}".format(x,pred))
+        print("")
 
 if __name__ == "__main__":
     main()

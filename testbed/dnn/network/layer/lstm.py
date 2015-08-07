@@ -21,7 +21,7 @@ class LSTM(RNN):
             (self.nrng.standard_normal((self.n_hidden*2,)) * 1. / self.n_hidden*2).astype(theano.config.floatX)
         )
         if self.input.ndim > 1:
-            self.h = T.repeat(initial_hidden_state, self.input.shape[0], axis=0)
+            self.h = T.repeat(initial_hidden_state, self.input.ndim, axis=0).reshape((self.input.shape[0], self.n_hidden)) # FIXME: repeat is done by copying each value right next to each one. need to fix this
         else:
             self.h = initial_hidden_state
 
