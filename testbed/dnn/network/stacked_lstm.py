@@ -1,4 +1,3 @@
-import numpy
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -7,7 +6,7 @@ from base import Network
 from layer.lstm import LSTM
 from layer.linear_regression import LinearRegression
 
-import testbed.dnn.optimizers as O
+import optimizers as O
 
 class StackedLSTM(Network):
     '''
@@ -59,7 +58,7 @@ class StackedLSTM(Network):
             # build an LSTM layer
             layer = LSTM(input=input,
                          n_in=input_size,
-                         n_hidden=0, # FIXME
+                         n_hidden=1, # FIXME
                          n_out=hidden_layers_sizes[i],
                          activation=T.tanh,
                          nrng=numpy_rng,
@@ -90,15 +89,17 @@ class StackedLSTM(Network):
 
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        def step(x, *prev_hiddens):
+        def step(x):
             new_states = [lstm.output for lstm in self.lstm_layers]
             return [x] + new_states # FIXME: is this correct?
 
         result, updates = theano.scan(
             step,
+            sequences=[self.mask, self.x], # FIXME: is this correct?
             n_steps=n_timesteps,
-            outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
-                          T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
+            outputs_info=None # FIXME: can output_info be None?
+            # outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
+            #               T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
         )
 
         cost = (result[0] - self.y).norm(L=2) / n_timesteps

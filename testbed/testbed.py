@@ -34,7 +34,8 @@ class TestBed(object):
 
         numpy_rng = numpy.random.RandomState(89677)
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        self.model = dnn.LSTMFullyConnected(numpy_rng, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
 
     def supply(self, data):
         self.dataset.append(data)

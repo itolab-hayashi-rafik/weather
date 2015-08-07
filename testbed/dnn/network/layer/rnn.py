@@ -11,8 +11,8 @@ class RNN(base.Layer):
     Recurrent Neural Network
     """
     def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, **kwargs):
-        super(RNN, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, **kwargs)
         self.is_recursive = True
+        super(RNN, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, **kwargs)
 
     def setup(self):
         super(RNN, self).setup()
