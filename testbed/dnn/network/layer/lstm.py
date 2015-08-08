@@ -10,18 +10,18 @@ class LSTM(RNN):
     LSTM
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     """
-    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False, **kwargs):
+    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False, prefix="LSTM", **kwargs):
         self.n_hidden = n_hidden
-        super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, **kwargs)
+        super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
     def setup(self):
         # store the memory cells in first n spots, and store the current
         # output in the next n spots:
-        initial_hidden_state = theano.shared(
+        initial_hidden_state = self._shared(
             (self.nrng.standard_normal((self.n_hidden*2,)) * 1. / self.n_hidden*2).astype(theano.config.floatX)
         )
         if self.input.ndim > 1:
-            self.h = T.repeat(initial_hidden_state, self.input.ndim, axis=0).reshape((self.input.shape[0], self.n_hidden)) # FIXME: repeat is done by copying each value right next to each one. need to fix this
+            self.h = T.repeat(initial_hidden_state, self.input.shape[0], axis=0).reshape((self.n_hidden*2,self.input.shape[0])).transpose() # FIXME: use dimshuffle?
         else:
             self.h = initial_hidden_state
 
@@ -47,13 +47,13 @@ class LSTM(RNN):
         # TODO could we combine these 4 linear transformations for efficiency? (e.g., http://arxiv.org/pdf/1410.4615.pdf, page 5)
 
         # input gate for cells
-        self.in_gate     = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients)
+        self.in_gate     = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("inGate"))
         # forget gate for cells
-        self.forget_gate = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients)
+        self.forget_gate = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("forgetGate"))
         # input modulation for cells
-        self.in_gate2    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, self.activation, self.clip_gradients)
+        self.in_gate2    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, self.activation, self.clip_gradients, prefix=self._p("inGate2"))
         # output modulation
-        self.out_gate    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients)
+        self.out_gate    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("outGate"))
 
         # keep these layers organized
         self.internal_layers = [self.in_gate, self.forget_gate, self.in_gate2, self.out_gate]

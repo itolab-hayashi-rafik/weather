@@ -6,7 +6,7 @@ from numpy.random import RandomState
 from theano.tensor.shared_randomstreams import RandomStreams
 
 class Layer(object):
-    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, **kwargs):
+    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="Layer", **kwargs):
         """
         Typical hidden layer of a MLP: units are fully-connected and have
         sigmoidal activation function. Weight matrix W is of shape (n_in,n_out)
@@ -43,9 +43,17 @@ class Layer(object):
         self.n_out = n_out
         self.activation = activation
         self.clip_gradients = clip_gradients
+        self.prefix = prefix
 
         # setup variables
         self.setup()
+
+    def _p(self, name):
+        return '{}_{}'.format(self.prefix, name)
+
+    def _shared(self, value, name=None, strict=False, allow_downcast=False, **kwargs):
+        name = self._p(name) if name is not None else name
+        return theano.shared(value, name=name, strict=strict, allow_downcast=allow_downcast, **kwargs)
 
     def setup(self):
         # `W` is initialized with `W_values` which is uniformely sampled
@@ -71,10 +79,10 @@ class Layer(object):
         if self.activation == theano.tensor.nnet.sigmoid:
             W_values *= 4
 
-        W = theano.shared(value=W_values, name='W', borrow=True)
+        W = self._shared(value=W_values, name='W', borrow=True)
 
         b_values = numpy.zeros((self.n_out,), dtype=theano.config.floatX)
-        b = theano.shared(value=b_values, name='b', borrow=True)
+        b = self._shared(value=b_values, name='b', borrow=True)
 
         self.W = W
         self.b = b

@@ -381,6 +381,10 @@ def build_model(tparams, options):
                                             prefix=options['encoder'],
                                             mask=mask)
     if options['encoder'] == 'lstm':
+        # In case of averaging i.e mean pooling as defined in the paper , we take all
+        # the sequence of steps for all batch samples and then take a average of
+        # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
+        # see: http://theano-users.narkive.com/FPNQYJIf/problem-in-understanding-lstm-code-not-able-to-understand-the-flow-of-code-http-deeplearning-net
         proj = (proj * mask[:, :, None]).sum(axis=0)
         proj = proj / mask.sum(axis=0)[:, None]
     if options['use_dropout']:
