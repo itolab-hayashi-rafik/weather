@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy
 import theano
 import theano.tensor as T
@@ -6,12 +7,13 @@ from model import Model
 from network.stacked_lstm import StackedLSTM
 
 class LSTMFullyConnected(Model):
-    def __init__(self, numpy_rng, w=10, h=10, hidden_layers_sizes=[10]):
+    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[10]):
         self.w = w
         self.h = h
-        self.n_inputs = w*h
+        self.n = n
+        self.n_inputs = n*d*w*h
         self.n_hidden_layers = len(hidden_layers_sizes)
-        self.n_outputs = w*h
+        self.n_outputs = d*w*h
 
         print('LSTMFullyConnected: building the model...'),
         self.dnn = StackedLSTM(
@@ -29,6 +31,22 @@ class LSTMFullyConnected(Model):
         print('LSTMFullyConnected: building predict function...'),
         self.predict_fn = self.dnn.build_prediction_function()
         print('done')
+
+    def _make_input(self, dataset, idx):
+        '''
+        (i,j) の SdA に対する入力ベクトルを ndata から作る
+        :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
+        :return:
+        '''
+        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n_inputs))
+
+    def _make_output(self, dataset, idx):
+        '''
+        (i,j) の SdA に対する出力ベクトルをつくる
+        :param data:
+        :return:
+        '''
+        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.n_outputs))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -60,7 +78,7 @@ class LSTMFullyConnected(Model):
         n_samples = len(xs)
         maxlen = numpy.max(lengths)
 
-        x = numpy.zeros((maxlen, n_samples)).astype('int64')
+        x = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)
         for idx, s in enumerate(xs):
             x[:lengths[idx], idx] = s
@@ -121,8 +139,8 @@ class LSTMFullyConnected(Model):
                 #use_noise.set_value(1.) # TODO: implement dropout?
 
                 # Select the random examples for this minibatch
-                y = [dataset[1][t] for t in train_index]
-                x = [dataset[0][t] for t in train_index]
+                y = self._make_output(dataset, train_index)
+                x = self._make_input(dataset, train_index)
 
                 # Get the data in numpy.ndarray format
                 # This swap the axis!
@@ -193,5 +211,7 @@ class LSTMFullyConnected(Model):
         return self.finetune(dataset, train_idx, valid_idx, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size)
 
     def predict(self, dataset):
-        x, mask = self.prepare_data(dataset, None) # FIXME: None should be an numpy array to avoid manipulation against None object
-        return self.predict_fn(x, mask)
+        x = self._make_input(dataset, [len(dataset)-self.n])
+        x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
+        y = self.predict_fn(x, mask)
+        return y
