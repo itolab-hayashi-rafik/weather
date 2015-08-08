@@ -56,7 +56,7 @@ class StackedLSTM(Network):
             if i == 0:
                 input = self.x
             else:
-                input = self.lstm_layers[-1].output
+                input = self.lstm_layers[-1].output_h
 
             # build an LSTM layer
             layer = LSTM(input=input,
