@@ -40,8 +40,8 @@ class StackedLSTM(Network):
         self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
         # end-snippet-1
 
-        n_timesteps = self.x.shape[0]
-        n_samples = self.x.shape[1]
+        n_timesteps = self.x.shape[1]
+        n_samples = self.x.shape[0]
 
         # construct hidden layers
         self.lstm_layers = []
@@ -61,7 +61,6 @@ class StackedLSTM(Network):
             # build an LSTM layer
             layer = LSTM(input=input,
                          n_in=input_size,
-                         n_hidden=1, # FIXME
                          n_out=hidden_layers_sizes[i],
                          activation=T.tanh,
                          prefix="LSTM{}".format(i),
@@ -71,31 +70,9 @@ class StackedLSTM(Network):
 
             self.params.extend(layer.params)
 
-        def step(m, x):
-            new_states = [lstm.output for lstm in self.lstm_layers]
-            return new_states # FIXME: is this correct?
-
-        rval, updates = theano.scan(
-            step,
-            sequences=[self.mask, self.x],
-            n_steps=n_timesteps,
-            outputs_info=None # FIXME: can output_info be None?
-            # outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
-            #               T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
-        )
-
-        proj = rval[0]
-
-        # In case of averaging i.e mean pooling as defined in the paper , we take all
-        # the sequence of steps for all batch samples and then take a average of
-        # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
-        # see: http://theano-users.narkive.com/FPNQYJIf/problem-in-understanding-lstm-code-not-able-to-understand-the-flow-of-code-http-deeplearning-net
-        proj = (proj * self.mask[:, :, None]).sum(axis=0)
-        proj = proj / self.mask.sum(axis=0)[:, None]
-
         # We now need to add a logistic layer on top of the Stacked LSTM
         self.linLayer = LinearRegression(
-            input=proj,
+            input=self.lstm_layers[-1].output_h,
             n_in=hidden_layers_sizes[-1],
             n_out=n_outs,
             activation=T.tanh,
@@ -106,14 +83,25 @@ class StackedLSTM(Network):
 
         self.params.extend(self.linLayer.params)
 
-        self.y_pred = self.linLayer.output
-        self.errors = self.linLayer.errors(self.y) # FIXME: should be: (self.y_pred - self.y).norm(L=2) / n_timesteps
+        def step(m, x):
+            # FIXME: set the input value of the first lstm_layer to self.x.set_value(x). need to have two different variables for x and input...?
+            new_states = [lstm.output for lstm in self.lstm_layers]
+            new_states += self.linLayer.output
+            return new_states # FIXME: is this correct?
+
+        rval, updates = theano.scan(
+            step,
+            sequences=[self.mask, self.x],
+            n_steps=n_timesteps,
+            # outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
+            #               T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
+        )
+
+        self.y_pred = rval[-1]
+        self.errors = (self.y_pred - self.y).norm(L=2) / n_timesteps
         self.finetune_cost = self.errors
 
     def build_finetune_function(self, optimizer=O.adadelta):
-        n_timesteps = self.x.shape[0]
-        n_samples = self.x.shape[1]
-
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
         cost = self.finetune_cost

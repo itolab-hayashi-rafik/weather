@@ -10,33 +10,32 @@ class LSTM(RNN):
     LSTM
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     """
-    def __init__(self, input, n_in, n_hidden, n_out, activation=T.tanh, clip_gradients=False, prefix="LSTM", **kwargs):
-        self.n_hidden = n_hidden
+    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="LSTM", **kwargs):
         super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
     def setup(self):
         # store the memory cells in first n spots, and store the current
         # output in the next n spots:
         initial_hidden_state = self._shared(
-            (self.nrng.standard_normal((self.n_hidden*2,)) * 1. / self.n_hidden*2).astype(theano.config.floatX)
+            (self.nrng.standard_normal((self.n_out*2,)) * 1. / self.n_out*2).astype(theano.config.floatX)
         )
         if self.input.ndim > 1:
-            self.h = T.repeat(initial_hidden_state, self.input.shape[0], axis=0).reshape((self.n_hidden*2,self.input.shape[0])).transpose() # FIXME: use dimshuffle?
+            self.h = T.repeat(initial_hidden_state, self.input.shape[0], axis=0).reshape((self.n_out*2,self.input.shape[0])).transpose()
         else:
             self.h = initial_hidden_state
 
         if self.h.ndim > 1:
             #previous memory cell values
-            self.prev_c = self.h[:, :self.n_hidden]
+            self.prev_c = self.h[:, :self.n_out]
 
             #previous activations of the hidden layer
-            self.prev_h = self.h[:, self.n_hidden:]
+            self.prev_h = self.h[:, self.n_out:]
         else:
             #previous memory cell values
-            self.prev_c = self.h[:self.n_hidden]
+            self.prev_c = self.h[:self.n_out]
 
             #previous activations of the hidden layer
-            self.prev_h = self.h[self.n_hidden:]
+            self.prev_h = self.h[self.n_out:]
 
         # input and previous hidden constitute the actual
         # input to the LSTM:
@@ -47,16 +46,22 @@ class LSTM(RNN):
         # TODO could we combine these 4 linear transformations for efficiency? (e.g., http://arxiv.org/pdf/1410.4615.pdf, page 5)
 
         # input gate for cells
-        self.in_gate     = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("inGate"))
+        self.in_gate     = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("inGate"))
         # forget gate for cells
-        self.forget_gate = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("forgetGate"))
+        self.forget_gate = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("forgetGate"))
         # input modulation for cells
-        self.in_gate2    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, self.activation, self.clip_gradients, prefix=self._p("inGate2"))
+        self.in_gate2    = Layer(obs, self.n_in + self.n_out, self.n_out, self.activation, self.clip_gradients, prefix=self._p("inGate2"))
         # output modulation
-        self.out_gate    = Layer(obs, self.n_in + self.n_hidden, self.n_hidden, T.nnet.sigmoid, self.clip_gradients, prefix=self._p("outGate"))
+        self.out_gate    = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("outGate"))
 
         # keep these layers organized
         self.internal_layers = [self.in_gate, self.forget_gate, self.in_gate2, self.out_gate]
+
+        # new memory cells
+        self.next_c = self.forget_gate.output * self.prev_c + self.in_gate2.output * self.in_gate.output
+
+        # new hidden output
+        self.next_h = self.out_gate.output * T.tanh(self.next_c)
 
     @property
     def params(self):
@@ -80,21 +85,21 @@ class LSTM(RNN):
         Or more visibly, with past = [prev_c, prev_h]
         > [c, h] = f( x, [prev_c, prev_h] )
         """
-        # new memory cells
-        next_c = self.forget_gate.output * self.prev_c + self.in_gate2.output * self.in_gate.output
-
-        # new hidden output
-        next_h = self.out_gate.output * T.tanh(next_c)
-
         if self.h.ndim > 1:
-            return T.concatenate([next_c, next_h], axis=1)
+            return T.concatenate([self.next_c, self.next_h], axis=1)
         else:
-            return T.concatenate([next_c, next_h])
+            return T.concatenate([self.next_c, self.next_h])
 
     @property
-    def output_y(self):
-        return self.output[:self.n_out]
+    def output_c(self):
+        if self.h.ndim > 1:
+            return self.output[:, :self.n_out]
+        else:
+            return self.output[:self.n_out]
 
     @property
     def output_h(self):
-        return self.output[self.n_out:]
+        if self.h.ndim > 1:
+            return self.output[:, self.n_out:]
+        else:
+            return self.output[self.n_out:]
