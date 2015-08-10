@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Build a tweet sentiment analyzer
 '''
@@ -169,6 +170,9 @@ def lstm_layer(tparams, state_below, options, prefix='lstm', mask=None):
         return _x[:, n * dim:(n + 1) * dim]
 
     def _step(m_, x_, h_, c_):
+        # このとき x_ は _step() の外の state_below, つまり n_timestamps x n_samples x dim_proj の入力 3d tensor から
+        # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
+        # この実装では、ある条件(チュートリアル参照)を加えることで、i,f,o,c を結合(concatenate)した1つの行列での計算に簡単化している.
         preact = tensor.dot(h_, tparams[_p(prefix, 'U')])
         preact += x_
 
@@ -185,6 +189,9 @@ def lstm_layer(tparams, state_below, options, prefix='lstm', mask=None):
 
         return h, c
 
+    # このとき state_below は n_timesteps x n_samples x dim_proj の 3d tensor.
+    # これに 1 x n_samples x dim_proj の重み行列 W を掛けて、 n_timesteps x n_samples x dim_proj の 3d tensor を得る.
+    # さらに 1 x n_samples x dim_proj のバイアスベクトル b を加える (broadcast されるはず).
     state_below = (tensor.dot(state_below, tparams[_p(prefix, 'W')]) +
                    tparams[_p(prefix, 'b')])
 
@@ -374,9 +381,13 @@ def build_model(tparams, options):
     n_timesteps = x.shape[0]
     n_samples = x.shape[1]
 
+    # ランダムに生成した単語表 tparams['Wemb'] から、単語の番号列 x にあたる単語列を取り出し、単語ベクトルの列(文)を作る.
+    # 各タイムステップごとに、1つの単語を RNN に入力するために、 n_timesteps で reshape する.
+    # その後、ミニバッチを使うために n_samples で reshape する.
     emb = tparams['Wemb'][x.flatten()].reshape([n_timesteps,
                                                 n_samples,
                                                 options['dim_proj']])
+    # emb の各 timestep を入力層の入力として DNN モデルを作成
     proj = get_layer(options['encoder'])[1](tparams, emb, options,
                                             prefix=options['encoder'],
                                             mask=mask)

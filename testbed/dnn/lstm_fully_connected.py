@@ -11,7 +11,7 @@ class LSTMFullyConnected(Model):
         self.w = w
         self.h = h
         self.n = n
-        self.n_inputs = n*d*w*h
+        self.n_inputs = d*w*h
         self.n_hidden_layers = len(hidden_layers_sizes)
         self.n_outputs = d*w*h
 
@@ -38,7 +38,7 @@ class LSTMFullyConnected(Model):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n_inputs))
+        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.n_inputs))
 
     def _make_output(self, dataset, idx):
         '''
@@ -78,15 +78,15 @@ class LSTMFullyConnected(Model):
         n_samples = len(xs)
         maxlen = numpy.max(lengths)
 
-        # x = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)         # FIXME: should this be transposed?
-        # x_mask = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)
-        x = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
-        x_mask = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
+        x = numpy.zeros((self.n_inputs, maxlen, n_samples)).astype(theano.config.floatX) # FIXME: wrong shape?
+        x_mask = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)
+        # x = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
+        # x_mask = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
         for idx, s in enumerate(xs):
-            # x[:lengths[idx], idx] = s
-            # x_mask[:lengths[idx], idx] = 1.
-            x[idx, :lengths[idx]] = s
-            x_mask[idx, :lengths[idx]] = 1.
+            x[:, lengths[idx], idx] = s
+            x_mask[:lengths[idx], idx] = 1.
+            # x[idx, :lengths[idx]] = s
+            # x_mask[idx, :lengths[idx]] = 1.
 
         return x, x_mask, ys
 

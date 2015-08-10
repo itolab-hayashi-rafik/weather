@@ -10,9 +10,9 @@ class RNN(base.Layer):
     """
     Recurrent Neural Network
     """
-    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="RNN", **kwargs):
+    def __init__(self, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="RNN", **kwargs):
         self.is_recursive = True
-        super(RNN, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
+        super(RNN, self).__init__(None, n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
     def setup(self):
         super(RNN, self).setup()
@@ -20,13 +20,18 @@ class RNN(base.Layer):
         h_value = np.zeros(shape=(self.n_out,), dtype=theano.config.floatX)
         self.h = self._shared(value=h_value, name='h')
 
-    @property
-    def output(self):
-        lin_output = T.dot(self.W, T.concatenate([self.h, self.input])) + self.b
+    def step(self, *args, **kwargs):
+        x = args[0]
+
+        lin_output = T.dot(self.W, T.concatenate([self.h, x])) + self.b
         if self.activation is None:
             return lin_output
         else:
             return self.activation(lin_output)
+
+    @property
+    def output(self):
+        raise NotImplementedError
 
 class ElmanRNN(RNN):
     """
@@ -81,18 +86,10 @@ class ElmanRNN(RNN):
         # error between output and target
         return T.mean((self.y_pred - y) ** 2)
 
-    @property
-    def output(self):
-        def step(x_t, h_tm1):
-            h_t = self.activation(T.dot(x_t, self.W_in) + T.dot(h_tm1, self.W) + self.bh)
-            y_t = T.dot(h_t, self.W_out) + self.by
-            return h_t, y_t
-
-        [self.h, self.y_pred], _ = theano.scan(step,
-                                               sequences=self.input,
-                                               outputs_info=[self.h0, None])
-
-        return self.y_pred
+    def step(self, x_t, h_tm1):
+        h_t = self.activation(T.dot(x_t, self.W_in) + T.dot(h_tm1, self.W) + self.bh)
+        y_t = T.dot(h_t, self.W_out) + self.by
+        return h_t, y_t
 
     @property
     def params(self):

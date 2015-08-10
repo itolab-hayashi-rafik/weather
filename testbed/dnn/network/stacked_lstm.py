@@ -1,3 +1,4 @@
+import numpy
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -35,13 +36,13 @@ class StackedLSTM(Network):
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
 
         # allocate symbolic variables for the data
-        self.x = T.matrix('x', dtype=theano.config.floatX)  # the data is presented as rasterized images
+        self.x = T.tensor3('x', dtype=theano.config.floatX) # the input minibatch data
         self.mask = T.matrix('mask', dtype=theano.config.floatX)
         self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
         # end-snippet-1
 
-        n_timesteps = self.x.shape[1]
-        n_samples = self.x.shape[0]
+        n_timesteps = self.x.shape[0]
+        n_samples = self.x.shape[1]
 
         # construct hidden layers
         self.lstm_layers = []
@@ -52,15 +53,8 @@ class StackedLSTM(Network):
             else:
                 input_size = hidden_layers_sizes[i - 1]
 
-            # determine input
-            if i == 0:
-                input = self.x
-            else:
-                input = self.lstm_layers[-1].output_h
-
             # build an LSTM layer
-            layer = LSTM(input=input,
-                         n_in=input_size,
+            layer = LSTM(n_in=input_size,
                          n_out=hidden_layers_sizes[i],
                          activation=T.tanh,
                          prefix="LSTM{}".format(i),
@@ -70,31 +64,40 @@ class StackedLSTM(Network):
 
             self.params.extend(layer.params)
 
-        # We now need to add a logistic layer on top of the Stacked LSTM
-        self.linLayer = LinearRegression(
-            input=self.lstm_layers[-1].output_h,
-            n_in=hidden_layers_sizes[-1],
-            n_out=n_outs,
-            activation=T.tanh,
-            prefix="linLayer",
-            nrng=numpy_rng,
-            trng=theano_rng,
-        )
+        # # We now need to add a logistic layer on top of the Stacked LSTM
+        # self.linLayer = LinearRegression(
+        #     input=self.lstm_layers[-1].output_h,
+        #     n_in=hidden_layers_sizes[-1],
+        #     n_out=n_outs,
+        #     activation=T.tanh,
+        #     prefix="linLayer",
+        #     nrng=numpy_rng,
+        #     trng=theano_rng,
+        # )
+        #
+        # self.params.extend(self.linLayer.params)
 
-        self.params.extend(self.linLayer.params)
-
-        def step(m, x):
-            # FIXME: set the input value of the first lstm_layer to self.x.set_value(x). need to have two different variables for x and input...?
-            new_states = [lstm.output for lstm in self.lstm_layers]
-            new_states += self.linLayer.output
+        def step(m, x, *prev_states):
+            x_ = x
+            new_states = []
+            for i, layer in enumerate(self.lstm_layers):
+                (h_, c_, _) = prev_states[i]
+                layer_out = layer.step(m, x_, h_, c_)
+                _, _, x_ = layer_out # hidden, c, output
+                new_states += layer_out
             return new_states # FIXME: is this correct?
 
         rval, updates = theano.scan(
             step,
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
-            # outputs_info=[T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins),
-            #               T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_ins)] # FIXME: dim_proj --> self.n_ins
+            outputs_info=[
+                [(
+                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]),
+                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]),
+                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i])
+                 ) for i in xrange(self.n_layers)]
+            ] # FIXME: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
         )
 
         self.y_pred = rval[-1]

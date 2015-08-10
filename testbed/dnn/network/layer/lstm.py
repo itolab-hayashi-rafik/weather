@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy
 import theano
 import theano.tensor as T
@@ -8,98 +9,70 @@ from rnn import RNN
 class LSTM(RNN):
     """
     LSTM
+    see: http://deeplearning.net/tutorial/lstm.html
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     """
-    def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="LSTM", **kwargs):
-        super(LSTM, self).__init__(input, n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
+    def __init__(self, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="LSTM", **kwargs):
+        super(LSTM, self).__init__(n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
+
+    @staticmethod
+    def _ortho_weight(ndim):
+        W = numpy.random.randn(ndim, ndim)
+        u, s, v = numpy.linalg.svd(W)
+        return u.astype(theano.config.floatX)
+
+    @staticmethod
+    def _slice(_x, n, dim):
+        if _x.ndim == 3:
+            return _x[:, :, n * dim:(n + 1) * dim]
+        return _x[:, n * dim:(n + 1) * dim]
 
     def setup(self):
-        # store the memory cells in first n spots, and store the current
-        # output in the next n spots:
-        initial_hidden_state = self._shared(
-            (self.nrng.standard_normal((self.n_out*2,)) * 1. / self.n_out*2).astype(theano.config.floatX)
-        )
-        if self.input.ndim > 1:
-            self.h = T.repeat(initial_hidden_state, self.input.shape[0], axis=0).reshape((self.n_out*2,self.input.shape[0])).transpose()
-        else:
-            self.h = initial_hidden_state
+        W_value = numpy.concatenate([
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+        ], axis=1)
+        self.W = self._shared(W_value, name="W")
 
-        if self.h.ndim > 1:
-            #previous memory cell values
-            self.prev_c = self.h[:, :self.n_out]
+        U_value = numpy.concatenate([
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+        ], axis=1)
+        self.U = self._shared(U_value, name="U")
 
-            #previous activations of the hidden layer
-            self.prev_h = self.h[:, self.n_out:]
-        else:
-            #previous memory cell values
-            self.prev_c = self.h[:self.n_out]
+        b_value = numpy.zeros((4 * self.n_out,))
+        self.b = self._shared(b_value, name="b")
 
-            #previous activations of the hidden layer
-            self.prev_h = self.h[self.n_out:]
+    def step(self, m_, x_, h_, c_):
+        # このとき x_ は _step() の外の state_below, つまり n_timestamps x n_samples x dim_proj の入力 3d tensor から
+        # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
+        # この実装では、ある条件(チュートリアル参照)を加えることで、i,f,o,c を結合(concatenate)した1つの行列での計算に簡単化している.
+        preact = T.dot(h_, self.U)
+        preact += (T.dot(x_, self.W) + self.b)
 
-        # input and previous hidden constitute the actual
-        # input to the LSTM:
-        if self.h.ndim > 1:
-            obs = T.concatenate([self.input, self.prev_h], axis=1)
-        else:
-            obs = T.concatenate([self.input, self.prev_h])
-        # TODO could we combine these 4 linear transformations for efficiency? (e.g., http://arxiv.org/pdf/1410.4615.pdf, page 5)
+        i = T.nnet.sigmoid(LSTM._slice(preact, 0, self.n_out))
+        f = T.nnet.sigmoid(LSTM._slice(preact, 1, self.n_out))
+        o = self.activation(LSTM._slice(preact, 2, self.n_out)) # changed from T.nnet.sigmoid(...) to self.activation(...)
+        c = T.tanh(LSTM._slice(preact, 3, self.n_out))
 
-        # input gate for cells
-        self.in_gate     = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("inGate"))
-        # forget gate for cells
-        self.forget_gate = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("forgetGate"))
-        # input modulation for cells
-        self.in_gate2    = Layer(obs, self.n_in + self.n_out, self.n_out, self.activation, self.clip_gradients, prefix=self._p("inGate2"))
-        # output modulation
-        self.out_gate    = Layer(obs, self.n_in + self.n_out, self.n_out, T.nnet.sigmoid,  self.clip_gradients, prefix=self._p("outGate"))
+        c = f * c_ + i * c
+        c = m_[:, None] * c + (1. - m_)[:, None] * c_
 
-        # keep these layers organized
-        self.internal_layers = [self.in_gate, self.forget_gate, self.in_gate2, self.out_gate]
+        h = o * T.tanh(c)
+        h = m_[:, None] * h + (1. - m_)[:, None] * h_
 
-        # new memory cells
-        self.next_c = self.forget_gate.output * self.prev_c + self.in_gate2.output * self.in_gate.output
-
-        # new hidden output
-        self.next_h = self.out_gate.output * T.tanh(self.next_c)
+        return h, c, o
 
     @property
     def params(self):
-        return [param for layer in self.internal_layers for param in layer.params]
+        return [self.W, self.U, self.b]
 
     @params.setter
     def params(self, param_list):
-        start = 0
-        for layer in self.internal_layers:
-            end = start + len(layer.params)
-            layer.params = param_list[start:end]
-            start = end
-
-    @property
-    def output(self):
-        """
-        The hidden activation, h, of the network, along
-        with the new values for the memory cells, c,
-        Both are concatenated as follows:
-        >      y = f( x, past )
-        Or more visibly, with past = [prev_c, prev_h]
-        > [c, h] = f( x, [prev_c, prev_h] )
-        """
-        if self.h.ndim > 1:
-            return T.concatenate([self.next_c, self.next_h], axis=1)
-        else:
-            return T.concatenate([self.next_c, self.next_h])
-
-    @property
-    def output_c(self):
-        if self.h.ndim > 1:
-            return self.output[:, :self.n_out]
-        else:
-            return self.output[:self.n_out]
-
-    @property
-    def output_h(self):
-        if self.h.ndim > 1:
-            return self.output[:, self.n_out:]
-        else:
-            return self.output[self.n_out:]
+        self.W.set_value(param_list[0].get_value())
+        self.U.set_value(param_list[1].get_value())
+        self.b.set_value(param_list[2].get_value())
