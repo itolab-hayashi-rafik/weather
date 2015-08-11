@@ -155,7 +155,8 @@ class LSTMFullyConnected(Model):
                     return 1., 1., 1.
 
                 if numpy.mod(uidx, dispFreq) == 0:
-                    print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                    #print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                    pass
 
                 if numpy.mod(uidx, validFreq) == 0:
                     #use_noise.set_value(0.) # TODO: implement dropout?
@@ -211,4 +212,4 @@ class LSTMFullyConnected(Model):
         x = self._make_input(dataset, [len(dataset)-self.n])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
         y = self.predict_fn(x, mask)
-        return y
+        return y[None, :, :]

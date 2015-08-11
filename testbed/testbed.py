@@ -14,7 +14,7 @@ from generator import Generator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10]):
+    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10,10]):
         '''
         初期化する
         :param window_size:

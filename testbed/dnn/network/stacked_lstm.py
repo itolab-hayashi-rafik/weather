@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy
 import theano
 import theano.tensor as T
@@ -44,7 +45,7 @@ class StackedLSTM(Network):
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
-        # construct hidden layers
+        # construct LSTM layers
         self.lstm_layers = []
         for i, n_hidden in enumerate(hidden_layers_sizes):
             # determine input size
@@ -88,13 +89,20 @@ class StackedLSTM(Network):
             name="LSTM_layers"
         )
 
-        proj = rval[-1]
+        # rval には n_timestamps 分の step() の戻り値 new_states が入っている
+        #assert(len(rval) == 3*self.n_layers)
+        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
+        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
+        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_o
+        # * rval[3]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
+        # ...
+        proj = rval[-1][-1]
         # In case of averaging i.e mean pooling as defined in the paper , we take all
         # the sequence of steps for all batch samples and then take a average of
         # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
         # see: http://theano-users.narkive.com/FPNQYJIf/problem-in-understanding-lstm-code-not-able-to-understand-the-flow-of-code-http-deeplearning-net
-        proj = (proj * self.mask[:, :, None]).sum(axis=0)
-        proj = proj / self.mask.sum(axis=0)[:, None]
+        # proj = (proj * self.mask[:, :, None]).sum(axis=0)
+        # proj = proj / self.mask.sum(axis=0)[:, None]
 
         # We now need to add a logistic layer on top of the Stacked LSTM
         self.linLayer = LinearRegression(
