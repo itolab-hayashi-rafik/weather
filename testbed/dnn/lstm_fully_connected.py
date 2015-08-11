@@ -164,16 +164,14 @@ class LSTMFullyConnected(Model):
                     history_errs.append(valid_cost)
 
                     if (uidx == 0 or
-                                valid_cost <= numpy.array(history_errs)[:,
-                                             0].min()):
+                                valid_cost <= numpy.array(history_errs).min()):
                         #best_p = unzip(tparams) # FIXME: saving parameters is not implemented here
                         bad_counter = 0
 
                     print('Train ', cost, 'Valid ', valid_cost)
 
                     if (len(history_errs) > patience and
-                                valid_cost >= numpy.array(history_errs)[:-patience,
-                                             0].min()):
+                                valid_cost >= numpy.array(history_errs)[:-patience].min()):
                         bad_counter += 1
                         if bad_counter > patience:
                             print 'Early Stop!'
