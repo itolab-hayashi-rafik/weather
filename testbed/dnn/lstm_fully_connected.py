@@ -95,11 +95,10 @@ class LSTMFullyConnected(Model):
         minibatches = []
         minibatch_start = 0
         for i in range(len(idx) // minibatch_size):
-            minibatches.append(idx_list[minibatch_start:
-            minibatch_start + minibatch_size])
+            minibatches.append(idx_list[minibatch_start:minibatch_start + minibatch_size])
             minibatch_start += minibatch_size
 
-        if (minibatch_start != idx[-1]):
+        if (minibatch_start != len(idx)):
             # Make a minibatch out of what is left
             minibatches.append(idx_list[minibatch_start:])
 
