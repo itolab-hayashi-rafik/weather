@@ -96,7 +96,7 @@ if __name__ == '__main__':
     for i,y in enumerate(gen):
         # predict
         y_pred = bed.predict()
-        #print("{}: y={}, y_pred={}".format(i, y, y_pred))
+        print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
         bed.supply(y)
 

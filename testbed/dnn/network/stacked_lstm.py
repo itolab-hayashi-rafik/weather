@@ -64,19 +64,6 @@ class StackedLSTM(Network):
 
             self.params.extend(layer.params)
 
-        # # We now need to add a logistic layer on top of the Stacked LSTM
-        # self.linLayer = LinearRegression(
-        #     input=self.lstm_layers[-1].output_h,
-        #     n_in=hidden_layers_sizes[-1],
-        #     n_out=n_outs,
-        #     activation=T.tanh,
-        #     prefix="linLayer",
-        #     nrng=numpy_rng,
-        #     trng=theano_rng,
-        # )
-        #
-        # self.params.extend(self.linLayer.params)
-
         def step(m, x, *prev_states):
             x_ = x
             new_states = []
@@ -97,10 +84,24 @@ class StackedLSTM(Network):
                         for j in xrange(3)
                             for i in xrange(self.n_layers)
                 ]
-            ) # FIXME: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            ), # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            name="LSTM_layers"
         )
 
-        self.y_pred = rval[-1]
+        # We now need to add a logistic layer on top of the Stacked LSTM
+        self.linLayer = LinearRegression(
+            input=rval[-1],
+            n_in=hidden_layers_sizes[-1],
+            n_out=n_outs,
+            activation=T.tanh,
+            prefix="linLayer",
+            nrng=numpy_rng,
+            trng=theano_rng,
+        )
+
+        self.params.extend(self.linLayer.params)
+
+        self.y_pred = self.linLayer.output
         self.errors = (self.y_pred - self.y).norm(L=2) / n_timesteps
         self.finetune_cost = self.errors
 

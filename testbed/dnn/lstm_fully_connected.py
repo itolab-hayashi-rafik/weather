@@ -197,8 +197,8 @@ class LSTMFullyConnected(Model):
         costs = []
         for _, valid_index in kf:
             # Select the random examples for this minibatch
-            y = [dataset[1][t] for t in valid_index]
-            x = [dataset[0][t] for t in valid_index]
+            y = self._make_output(dataset, valid_index)
+            x = self._make_input(dataset, valid_index)
 
             x, mask, y = self.prepare_data(x, y)
 

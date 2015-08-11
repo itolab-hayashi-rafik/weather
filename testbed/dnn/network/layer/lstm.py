@@ -45,18 +45,18 @@ class LSTM(RNN):
         ], axis=1)
         self.W = self._shared(W_value, name="W")
 
-        # U_value = numpy.concatenate([
-        #     LSTM._ortho_weight(self.n_out),
-        #     LSTM._ortho_weight(self.n_out),
-        #     LSTM._ortho_weight(self.n_out),
-        #     LSTM._ortho_weight(self.n_out),
-        # ], axis=1)
         U_value = numpy.concatenate([
-            self.random_initialization((self.n_in, self.n_out)),
-            self.random_initialization((self.n_in, self.n_out)),
-            self.random_initialization((self.n_in, self.n_out)),
-            self.random_initialization((self.n_in, self.n_out)),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
+            LSTM._ortho_weight(self.n_out),
         ], axis=1)
+        # U_value = numpy.concatenate([
+        #     self.random_initialization((self.n_in, self.n_out)),
+        #     self.random_initialization((self.n_in, self.n_out)),
+        #     self.random_initialization((self.n_in, self.n_out)),
+        #     self.random_initialization((self.n_in, self.n_out)),
+        # ], axis=1)
         self.U = self._shared(U_value, name="U")
 
         b_value = numpy.zeros((4 * self.n_out,), dtype=theano.config.floatX)
