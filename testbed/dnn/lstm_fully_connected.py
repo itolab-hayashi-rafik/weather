@@ -76,17 +76,13 @@ class LSTMFullyConnected(Model):
                 return None, None, None
 
         n_samples = len(xs)
-        maxlen = numpy.max(lengths)
+        maxlen = numpy.max(lengths) # n_timesteps
 
-        x = numpy.zeros((self.n_inputs, maxlen, n_samples)).astype(theano.config.floatX) # FIXME: wrong shape?
-        x_mask = numpy.zeros((maxlen, n_samples)).astype(theano.config.floatX)
-        # x = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
-        # x_mask = numpy.zeros((n_samples, maxlen)).astype(theano.config.floatX)
+        x = numpy.zeros((maxlen, n_samples, self.n_inputs), dtype=theano.config.floatX)
+        x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
         for idx, s in enumerate(xs):
-            x[:, lengths[idx], idx] = s
+            x[:lengths[idx], idx, :] = s
             x_mask[:lengths[idx], idx] = 1.
-            # x[idx, :lengths[idx]] = s
-            # x_mask[idx, :lengths[idx]] = 1.
 
         return x, x_mask, ys
 

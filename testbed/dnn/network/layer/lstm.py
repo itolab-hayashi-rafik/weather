@@ -27,20 +27,35 @@ class LSTM(RNN):
             return _x[:, :, n * dim:(n + 1) * dim]
         return _x[:, n * dim:(n + 1) * dim]
 
+    def random_initialization(self, size):
+        return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
+
     def setup(self):
+        # W_value = numpy.concatenate([
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        # ], axis=1)
         W_value = numpy.concatenate([
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
         ], axis=1)
         self.W = self._shared(W_value, name="W")
 
+        # U_value = numpy.concatenate([
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        #     LSTM._ortho_weight(self.n_out),
+        # ], axis=1)
         U_value = numpy.concatenate([
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
-            LSTM._ortho_weight(self.n_out),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
+            self.random_initialization((self.n_in, self.n_out)),
         ], axis=1)
         self.U = self._shared(U_value, name="U")
 
