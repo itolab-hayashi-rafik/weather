@@ -81,7 +81,7 @@ class StackedLSTM(Network):
             x_ = x
             new_states = []
             for i, layer in enumerate(self.lstm_layers):
-                (h_, c_, _) = prev_states[i]
+                h_, c_, _ = prev_states[i], prev_states[i+1], prev_states[i+2]
                 layer_out = layer.step(m, x_, h_, c_)
                 _, _, x_ = layer_out # hidden, c, output
                 new_states += layer_out
@@ -91,13 +91,13 @@ class StackedLSTM(Network):
             step,
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
-            outputs_info=[
-                [(
-                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]),
-                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]),
-                     T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i])
-                 ) for i in xrange(self.n_layers)]
-            ] # FIXME: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            outputs_info=(
+                [
+                    dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]), taps=[-1])
+                        for j in xrange(3)
+                            for i in xrange(self.n_layers)
+                ]
+            ) # FIXME: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
         )
 
         self.y_pred = rval[-1]

@@ -44,7 +44,7 @@ class LSTM(RNN):
         ], axis=1)
         self.U = self._shared(U_value, name="U")
 
-        b_value = numpy.zeros((4 * self.n_out,))
+        b_value = numpy.zeros((4 * self.n_out,), dtype=theano.config.floatX)
         self.b = self._shared(b_value, name="b")
 
     def step(self, m_, x_, h_, c_):
