@@ -8,9 +8,10 @@ from network.stacked_lstm import StackedLSTM
 
 class LSTMFullyConnected(Model):
     def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[10]):
+        self.n = n
+        self.d = d
         self.w = w
         self.h = h
-        self.n = n
         self.n_inputs = d*w*h
         self.n_hidden_layers = len(hidden_layers_sizes)
         self.n_outputs = d*w*h
@@ -211,5 +212,5 @@ class LSTMFullyConnected(Model):
     def predict(self, dataset):
         x = self._make_input(dataset, [len(dataset)-self.n])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
-        y = self.predict_fn(x, mask)
-        return y[None, :, :]
+        y = self.predict_fn(x, mask).reshape((self.d, self.h, self.w))
+        return y
