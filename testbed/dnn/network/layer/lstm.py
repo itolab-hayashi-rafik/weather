@@ -63,7 +63,7 @@ class LSTM(RNN):
         self.b = self._shared(b_value, name="b")
 
     def step(self, m_, x_, h_, c_):
-        # このとき x_ は _step() の外の state_below, つまり n_timestamps x n_samples x dim_proj の入力 3d tensor から
+        # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
         # この実装では、ある条件(チュートリアル参照)を加えることで、i,f,o,c を結合(concatenate)した1つの行列での計算に簡単化している.
         preact = T.dot(h_, self.U)

@@ -170,8 +170,8 @@ def lstm_layer(tparams, state_below, options, prefix='lstm', mask=None):
         return _x[:, n * dim:(n + 1) * dim]
 
     def _step(m_, x_, h_, c_):
-        # このとき x_ は _step() の外の state_below, つまり n_timestamps x n_samples x dim_proj の入力 3d tensor から
-        # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
+        # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
+        # timestep ごとに切られた、n_samples * dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
         # この実装では、ある条件(チュートリアル参照)を加えることで、i,f,o,c を結合(concatenate)した1つの行列での計算に簡単化している.
         preact = tensor.dot(h_, tparams[_p(prefix, 'U')])
         preact += x_
@@ -189,8 +189,8 @@ def lstm_layer(tparams, state_below, options, prefix='lstm', mask=None):
 
         return h, c
 
-    # このとき state_below は n_timesteps x n_samples x dim_proj の 3d tensor.
-    # これに 1 x n_samples x dim_proj の重み行列 W を掛けて、 n_timesteps x n_samples x dim_proj の 3d tensor を得る.
+    # このとき state_below は n_timesteps * n_samples * dim_proj の 3d tensor.
+    # これに 1 x n_samples x dim_proj の重み行列 W を掛けて、 n_timesteps * n_samples * dim_proj の 3d tensor を得る.
     # さらに 1 x n_samples x dim_proj のバイアスベクトル b を加える (broadcast されるはず).
     state_below = (tensor.dot(state_below, tparams[_p(prefix, 'W')]) +
                    tparams[_p(prefix, 'b')])
