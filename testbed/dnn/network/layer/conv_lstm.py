@@ -145,7 +145,7 @@ class ConvLSTM(RNN):
         if self.border_mode == 'full':
             h_bound = self.filter_shape[2] / 2
             w_bound = self.filter_shape[3] / 2
-            x_ = x_[:, :, h_bound:-h_bound+1, w_bound:-w_bound+1]
+            x_ = x_[:, :, h_bound:-h_bound, w_bound:-w_bound]
         elif self.border_mode == 'valid':
             pass
             # FIXME: fill the lacking value on the border by padding zero or copying the nearest value
