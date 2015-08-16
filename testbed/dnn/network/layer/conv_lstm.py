@@ -128,8 +128,8 @@ class ConvLSTM(RNN):
 
         # reshape x_ so that the size of output tensor matches that of the input of LSTM
         if self.border_mode == 'full':
-            h_bound = self.filter_shape[1] / 2
-            w_bound = self.filter_shape[2] / 2
+            h_bound = self.filter_shape[2] / 2
+            w_bound = self.filter_shape[3] / 2
             x_ = x_[:, :, h_bound:-h_bound+1, w_bound:-w_bound+1]
         elif self.border_mode == 'valid':
             pass
@@ -137,7 +137,8 @@ class ConvLSTM(RNN):
         else:
             raise NotImplementedError("border_mode must be either 'full' or 'valid'")
 
-        # # at this point, the tensor x_ is shape of (n_samples, nb filters, input height, input width)
+        # at this point, the tensor x_ is shape of (n_samples, nb filters, input height, input width)
+
         # # we further reshape this tensor to (n_samples, nb filters, self.n_in)
         # x_ = x_.reshape((n_samples, n_feature_maps, self.n_in))
         #

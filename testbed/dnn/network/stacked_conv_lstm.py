@@ -89,7 +89,7 @@ class StackedConvLSTM(Network):
             x_ = x
             new_states = []
             for i, layer in enumerate(self.conv_lstm_layers):
-                h_, c_, _ = prev_states[i], prev_states[i+1], prev_states[i+2]
+                h_, c_, _ = prev_states[3*i], prev_states[3*i+1], prev_states[3*i+2]
                 layer_out = layer.step(m, x_, h_, c_)
                 _, _, x_ = layer_out # hidden, c, output
                 new_states += layer_out
@@ -97,9 +97,10 @@ class StackedConvLSTM(Network):
 
         outputs_info = []
         for i in xrange(self.n_layers):
+            os = self.conv_lstm_layers[i].output_shape
             outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # h_
             outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # c_
-            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].output_shape), taps=[-1])) # o_ (x_)
+            outputs_info.append(dict(initial=T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, os[0], os[1], os[2]), 1), taps=[-1])) # o_ (x_)
 
         rval, updates = theano.scan(
             step,
