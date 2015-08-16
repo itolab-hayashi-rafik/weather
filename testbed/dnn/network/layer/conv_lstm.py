@@ -2,6 +2,7 @@
 import numpy
 import theano
 import theano.tensor as T
+from theano.tensor.signal import downsample
 
 from rnn import RNN
 
@@ -75,17 +76,18 @@ class ConvLSTM(RNN):
 
         # initialize weights with random weights
         Conv_W_bound = numpy.sqrt(6. / (fan_in + fan_out))
-        self.Conv_W = theano.shared(
+        self.Conv_W = self._shared(
             numpy.asarray(
                 self.nrng.uniform(low=-Conv_W_bound, high=Conv_W_bound, size=self.filter_shape),
                 dtype=theano.config.floatX
             ),
+            name="Conv_W",
             borrow=True
         )
 
         # the bias is a 1D tensor -- one bias per output feature map
         Conv_b_values = numpy.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
-        self.Conv_b = theano.shared(value=Conv_b_values, borrow=True)
+        self.Conv_b = self._shared(value=Conv_b_values, name="Conv_b", borrow=True)
 
 
         #
@@ -125,6 +127,19 @@ class ConvLSTM(RNN):
             image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
             border_mode=self.border_mode # zero padding the edge
         ) # (n_samples, self.filter_shape[0], self.input_shape[1] + self.filter_shape[1] - 1, self.input_shape[2] + self.filter_shape[2] - 1)
+
+        # downsample each feature map individually, using maxpooling
+        x_ = downsample.max_pool_2d(
+            input=x_,
+            ds=self.poolsize,
+            ignore_border=True
+        )
+
+        # add the bias term. Since the bias is a vector (1D array), we first
+        # reshape it to a tensor of shape (1, n_filters, 1, 1). Each bias will
+        # thus be broadcasted across mini-batches and feature map
+        # width & height
+        x_ = T.tanh(x_ + self.Conv_b.dimshuffle('x', 0, 'x', 'x'))
 
         # reshape x_ so that the size of output tensor matches that of the input of LSTM
         if self.border_mode == 'full':
@@ -168,6 +183,7 @@ class ConvLSTM(RNN):
 
         # reshape the output o to make it match the output of this ConvLSTM layer, (n_samples, n_feature_maps, height, width)
         o = o.reshape((n_samples, self.input_shape[0], self.input_shape[1], self.input_shape[2]))
+        o = T.unbroadcast(o, 1)
 
         return h, c, o
 
