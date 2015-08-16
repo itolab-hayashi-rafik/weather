@@ -51,7 +51,7 @@ class ConvLSTMFullyConnected(Model):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.n_inputs))
+        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.d, self.h, self.w))
 
     def _make_output(self, dataset, idx):
         '''
@@ -59,7 +59,7 @@ class ConvLSTMFullyConnected(Model):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.n_outputs))
+        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.d, self.h, self.w))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -91,10 +91,10 @@ class ConvLSTMFullyConnected(Model):
         n_samples = len(xs)
         maxlen = numpy.max(lengths) # n_timesteps
 
-        x = numpy.zeros((maxlen, n_samples, self.n_inputs), dtype=theano.config.floatX)
+        x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
         for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :] = s
+            x[:lengths[idx], idx, :, :, :] = s
             x_mask[:lengths[idx], idx] = 1.
 
         return x, x_mask, ys
