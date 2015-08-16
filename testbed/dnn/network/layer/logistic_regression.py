@@ -2,7 +2,9 @@ import numpy
 import theano
 import theano.tensor as T
 
-class LogisticRegression(object):
+import base
+
+class LogisticRegression(base.Layer):
     """Multi-class Logistic Regression Class
 
     The logistic regression is fully described by a weight matrix :math:`W`
@@ -11,41 +13,8 @@ class LogisticRegression(object):
     determine a class membership probability.
     """
 
-    def __init__(self, input, n_in, n_out):
-        """ Initialize the parameters of the logistic regression
-
-        :type input: theano.tensor.TensorType
-        :param input: symbolic variable that describes the input of the
-                      architecture (one minibatch)
-
-        :type n_in: int
-        :param n_in: number of input units, the dimension of the space in
-                     which the datapoints lie
-
-        :type n_out: int
-        :param n_out: number of output units, the dimension of the space in
-                      which the labels lie
-
-        """
-        # start-snippet-1
-        # initialize with 0 the weights W as a matrix of shape (n_in, n_out)
-        self.W = theano.shared(
-            value=numpy.zeros(
-                (n_in, n_out),
-                dtype=theano.config.floatX
-            ),
-            name='W',
-            borrow=True
-        )
-        # initialize the baises b as a vector of n_out 0s
-        self.b = theano.shared(
-            value=numpy.zeros(
-                (n_out,),
-                dtype=theano.config.floatX
-            ),
-            name='b',
-            borrow=True
-        )
+    def setup(self):
+        super(LogisticRegression, self).setup()
 
         # symbolic expression for computing the matrix of class-membership
         # probabilities
@@ -61,9 +30,6 @@ class LogisticRegression(object):
         # probability is maximal
         self.y_pred = T.argmax(self.p_y_given_x, axis=1)
         # end-snippet-1
-
-        # parameters of the model
-        self.params = [self.W, self.b]
 
     def negative_log_likelihood(self, y):
         """Return the mean of the negative log-likelihood of the prediction

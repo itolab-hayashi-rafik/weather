@@ -4,7 +4,7 @@ import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from base import Network
-from layer.hidden_layer import HiddenLayer
+from layer.base import Layer
 from layer.linear_regression import LinearRegression
 from dA import dA
 
@@ -99,7 +99,7 @@ class SdA(Network):
             else:
                 layer_input = self.sigmoid_layers[-1].output
 
-            sigmoid_layer = HiddenLayer(rng=numpy_rng,
+            sigmoid_layer = Layer(rng=numpy_rng,
                                         input=layer_input,
                                         n_in=input_size,
                                         n_out=hidden_layers_sizes[i],
