@@ -69,7 +69,7 @@ class StackedLSTM(Network):
             x_ = x
             new_states = []
             for i, layer in enumerate(self.lstm_layers):
-                h_, c_, _ = prev_states[i], prev_states[i+1], prev_states[i+2]
+                h_, c_, _ = prev_states[3*i], prev_states[3*i+1], prev_states[3*i+2]
                 layer_out = layer.step(m, x_, h_, c_)
                 _, _, x_ = layer_out # hidden, c, output
                 new_states += layer_out
