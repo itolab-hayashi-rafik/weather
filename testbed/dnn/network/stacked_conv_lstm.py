@@ -4,13 +4,13 @@ import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from base import Network
-from layer.lstm import LSTM
+from base import Network, tensor5
+from layer.conv_lstm import ConvLSTM
 from layer.linear_regression import LinearRegression
 
 import optimizers as O
 
-class StackedLSTM(Network):
+class StackedConvLSTM(Network):
     '''
     an implementation of Stacked LSTM
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
@@ -19,17 +19,35 @@ class StackedLSTM(Network):
             self,
             numpy_rng,
             theano_rng=None,
-            n_ins=784,
-            hidden_layers_sizes=[500, 500],
-            n_outs=10
+            input_shape=(1,28,28),
+            filter_shapes=[(1,1,3,3)]
     ):
-        super(StackedLSTM, self).__init__()
+        '''
+        Initialize StackedConvLSTM
+        :param numpy_rng:
+        :param theano_rng:
 
-        self.n_ins = n_ins
-        self.n_outs = n_outs
-        self.lstm_layers = []
+        :type input_shape: tuple or list of length 4
+        :param input_shape: (batch size, num input feature maps,
+                             image height, image width)
+
+        :type filter_shapes: list of "tuple or list of length 4"
+        :param filter_shapes: [(number of filters, num input feature maps,
+                               filter height, filter width)]
+
+        :type output_shape: tuple or list of length 3
+        :param output_shape: (output feature maps,
+                              image height, image width)
+        :return:
+        '''
+        super(StackedConvLSTM, self).__init__()
+
+        self.input_shape = input_shape
+        self.filter_shapes = filter_shapes
+        self.n_outs = numpy.prod(input_shape[1:])
+        self.conv_lstm_layers = []
         self.params = []
-        self.n_layers = len(hidden_layers_sizes)
+        self.n_layers = len(filter_shapes)
 
         assert self.n_layers > 0
 
@@ -37,56 +55,58 @@ class StackedLSTM(Network):
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
 
         # allocate symbolic variables for the data
-        self.x = T.tensor3('x', dtype=theano.config.floatX) # the input minibatch data
+        # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
+        self.x = tensor5('x', dtype=theano.config.floatX) # the input minibatch data
         self.mask = T.matrix('mask', dtype=theano.config.floatX)
-        self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
+        # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
+        self.y = T.tensor4('y', dtype=theano.config.floatX)  # the regression is presented as real values
         # end-snippet-1
 
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
         # construct LSTM layers
-        self.lstm_layers = []
-        for i, n_hidden in enumerate(hidden_layers_sizes):
+        self.conv_lstm_layers = []
+        for i, n_hidden in enumerate(filter_shapes):
             # determine input size
             if i == 0:
-                input_size = n_ins
+                s_in = input_shape
             else:
-                input_size = hidden_layers_sizes[i - 1]
+                s_in = self.conv_lstm_layers[-1].output_shape
 
             # build an LSTM layer
-            layer = LSTM(n_in=input_size,
-                         n_out=hidden_layers_sizes[i],
-                         activation=T.tanh,
-                         prefix="LSTM{}".format(i),
-                         nrng=numpy_rng,
-                         trng=theano_rng)
-            self.lstm_layers.append(layer)
+            layer = ConvLSTM(input_shape=s_in,
+                             filter_shape=filter_shapes[i],
+                             activation=T.tanh,
+                             prefix="ConvLSTM{}".format(i),
+                             nrng=numpy_rng,
+                             trng=theano_rng)
+            self.conv_lstm_layers.append(layer)
 
             self.params.extend(layer.params)
 
         def step(m, x, *prev_states):
             x_ = x
             new_states = []
-            for i, layer in enumerate(self.lstm_layers):
+            for i, layer in enumerate(self.conv_lstm_layers):
                 h_, c_, _ = prev_states[i], prev_states[i+1], prev_states[i+2]
                 layer_out = layer.step(m, x_, h_, c_)
                 _, _, x_ = layer_out # hidden, c, output
                 new_states += layer_out
             return new_states
 
+        outputs_info = []
+        for i in xrange(self.n_layers):
+            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # h_
+            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # c_
+            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].output_shape), taps=[-1])) # o_ (x_)
+
         rval, updates = theano.scan(
             step,
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
-            outputs_info=(
-                [
-                    dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]), taps=[-1])
-                        for j in xrange(3)
-                            for i in xrange(self.n_layers)
-                ]
-            ), # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
-            name="LSTM_layers"
+            outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            name="ConvLSTM_layers"
         )
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
@@ -105,19 +125,20 @@ class StackedLSTM(Network):
         # proj = proj / self.mask.sum(axis=0)[:, None]
 
         # We now need to add a logistic layer on top of the Stacked LSTM
-        self.linLayer = LinearRegression(
-            input=proj,
-            n_in=hidden_layers_sizes[-1],
-            n_out=n_outs,
-            activation=T.tanh,
-            prefix="linLayer",
-            nrng=numpy_rng,
-            trng=theano_rng,
-        )
+        # self.linLayer = LinearRegression(
+        #     input=proj,
+        #     n_in=self.conv_lstm_layers[-1].n_out,
+        #     n_out=self.n_outs,
+        #     activation=T.tanh,
+        #     prefix="linLayer",
+        #     nrng=numpy_rng,
+        #     trng=theano_rng,
+        # )
+        #
+        # self.params.extend(self.linLayer.params)
 
-        self.params.extend(self.linLayer.params)
-
-        self.y_pred = self.linLayer.output
+        # self.y_pred = self.linLayer.output
+        self.y_pred = proj
         self.errors = (self.y_pred - self.y).norm(L=2) / n_timesteps
         self.finetune_cost = self.errors
 

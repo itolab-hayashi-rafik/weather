@@ -9,20 +9,23 @@ class ConvLSTM(RNN):
     """
     ConvLSTM
     """
-    def __init__(self, input_shape, filter_shape, output_shape, activation=T.tanh, clip_gradients=False, prefix="ConvLSTM", **kwargs):
+    def __init__(self, input_shape, filter_shape, poolsize=(1,1), border_mode='full', activation=T.tanh, clip_gradients=False, prefix="ConvLSTM", **kwargs):
         '''
         initialize ConvLSTM
 
-        :type input_shape: tuple or list of length 4
-        :param input_shape: (batch size, num input feature maps,
+        :type input_shape: tuple or list of length 3
+        :param input_shape: (num input feature maps,
                              image height, image width)
 
         :type filter_shape: tuple or list of length 4
         :param filter_shape: (number of filters, num input feature maps,
                               filter height, filter width)
 
-        :type output_shape: tuple or list of length 3
-        :param output_shape: (num input feature maps, filter height, filter width)
+        :type poolsize: tuple of length 2
+        :param poolsize: poolsize
+
+        :type border_mode: String
+        :param border_mode: 'full' or 'valid'
 
         :param activation:
         :param clip_gradients:
@@ -32,14 +35,13 @@ class ConvLSTM(RNN):
         '''
         self.input_shape = input_shape
         self.filter_shape = filter_shape
-        self.output_shape = output_shape
+        self.output_shape = input_shape
+        self.poolsize = poolsize
+        self.border_mode = border_mode
 
-        # n_in, n_out = width * height
-        n_in = numpy.prod(input_shape[2:])
-        n_out = numpy.prod(output_shape[1:])
-
-        # assert that input and output shape have the same number of feature maps
-        assert n_in[0] == n_out[0]
+        # n_in, n_out = input featuer maps * input height * input width
+        n_in = numpy.prod(input_shape)
+        n_out = numpy.prod(input_shape)
 
         super(ConvLSTM, self).__init__(n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
@@ -69,7 +71,8 @@ class ConvLSTM(RNN):
         fan_in = numpy.prod(self.filter_shape[1:])
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" / pooling size
-        fan_out = (self.filter_shape[0] * numpy.prod(self.filter_shape[2:]) / numpy.prod(poolsize))
+        fan_out = (self.filter_shape[0] * numpy.prod(self.filter_shape[2:]) / numpy.prod(self.poolsize))
+
         # initialize weights with random weights
         Conv_W_bound = numpy.sqrt(6. / (fan_in + fan_out))
         self.Conv_W = theano.shared(
@@ -110,17 +113,43 @@ class ConvLSTM(RNN):
         self.LSTM_b = self._shared(LSTM_b_value, name="LSTM_b")
 
     def step(self, m_, x_, h_, c_):
+        # x_ should be of shape (batch size, nb feature maps, input height, input width)
+        n_samples = x_.shape[0]
+
         # convolve input feature maps with filters
-        # the output tensor is of shape (batch size, nb filters, output row, output col)
+        # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
         x_ = T.nnet.conv2d(
             input=x_,
             filters=self.Conv_W,
             filter_shape=self.filter_shape,
-            image_shape=self.input_shape
-        ) # FIXME: does this work?
+            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            border_mode=self.border_mode # zero padding the edge
+        ) # (n_samples, self.filter_shape[0], self.input_shape[1] + self.filter_shape[1] - 1, self.input_shape[2] + self.filter_shape[2] - 1)
 
-        # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * n_feature_maps * width * height の入力 5d tensor から
-        # timestep ごとに切られた、n_samples * n_feature_maps * width * height の 1 タイムステップでの RNN への入力のミニバッチが入っている.
+        # reshape x_ so that the size of output tensor matches that of the input of LSTM
+        if self.border_mode == 'full':
+            h_bound = self.filter_shape[1] / 2
+            w_bound = self.filter_shape[2] / 2
+            x_ = x_[:, :, h_bound:-h_bound+1, w_bound:-w_bound+1]
+        elif self.border_mode == 'valid':
+            pass
+            # FIXME: fill the lacking value on the border by padding zero or copying the nearest value
+        else:
+            raise NotImplementedError("border_mode must be either 'full' or 'valid'")
+
+        # # at this point, the tensor x_ is shape of (n_samples, nb filters, input height, input width)
+        # # we further reshape this tensor to (n_samples, nb filters, self.n_in)
+        # x_ = x_.reshape((n_samples, n_feature_maps, self.n_in))
+        #
+        # # to make the shape of x_ matches that of the input of LSTM, which is (n_samples, self.n_in),
+        # # we concatenate the values through filters by calculating the sum of them
+        # x_ = x_.sum(axis=1)
+
+        # we flatten this tensor to (n_samples, self.n_in), which is (n_samples, n_feature_maps * height * width)
+        x_ = x_.reshape((n_samples, self.n_in))
+
+        # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * self.n_in の入力 3d tensor から
+        # timestep ごとに切られた、n_samples * self.n_in の 1 タイムステップでの RNN への入力のミニバッチが入っている.
         # この実装では、ある条件(チュートリアル参照)を加えることで、i,f,o,c を結合(concatenate)した1つの行列での計算に簡単化している.
         preact = T.dot(h_, self.LSTM_U)
         preact += (T.dot(x_, self.LSTM_W) + self.LSTM_b) # FIXME: not yet considered well. maybe ndim does not match, need to fix this
@@ -135,6 +164,9 @@ class ConvLSTM(RNN):
 
         h = o * T.tanh(c)
         h = m_[:, None] * h + (1. - m_)[:, None] * h_
+
+        # reshape the output o to make it match the output of this ConvLSTM layer, (n_samples, n_feature_maps, height, width)
+        o = o.reshape((n_samples, self.input_shape[0], self.input_shape[1], self.input_shape[2]))
 
         return h, c, o
 
