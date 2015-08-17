@@ -40,9 +40,14 @@ class ConvLSTM(RNN):
         self.poolsize = poolsize
         self.border_mode = border_mode
 
-        # n_in, n_out = input featuer maps * input height * input width
-        n_in = numpy.prod(input_shape)
-        n_out = numpy.prod(input_shape)
+        # LSTM receives in total:
+        # "input height * input width / pooling size" inputs
+        n_in = numpy.prod(input_shape[1:]) / numpy.prod(poolsize)
+
+        # the num of output units is the same as that of input, so that the ConvLSTM in the next layer
+        # can receive exactly the same number of input as this layer receives
+        # FIXME: consider downsampling, using poolsize
+        n_out = n_in
 
         super(ConvLSTM, self).__init__(n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
@@ -153,15 +158,11 @@ class ConvLSTM(RNN):
             raise NotImplementedError("border_mode must be either 'full' or 'valid'")
 
         # at this point, the tensor x_ is shape of (n_samples, nb filters, input height, input width)
+        # we concatenate the values through filters by calculating their sum
+        # to make its shape (n_samples, input height, input width)
+        x_ = T.sum(x_, axis=1)
 
-        # # we further reshape this tensor to (n_samples, nb filters, self.n_in)
-        # x_ = x_.reshape((n_samples, n_feature_maps, self.n_in))
-        #
-        # # to make the shape of x_ matches that of the input of LSTM, which is (n_samples, self.n_in),
-        # # we concatenate the values through filters by calculating the sum of them
-        # x_ = x_.sum(axis=1)
-
-        # we flatten this tensor to (n_samples, self.n_in), which is (n_samples, n_feature_maps * height * width)
+        # we flatten this tensor to (n_samples, self.n_in), which is (n_samples, height * width)
         x_ = x_.reshape((n_samples, self.n_in))
 
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * self.n_in の入力 3d tensor から
@@ -182,7 +183,7 @@ class ConvLSTM(RNN):
         h = m_[:, None] * h + (1. - m_)[:, None] * h_
 
         # reshape the output o to make it match the output of this ConvLSTM layer, (n_samples, n_feature_maps, height, width)
-        o = o.reshape((n_samples, self.input_shape[0], self.input_shape[1], self.input_shape[2]))
+        o = o.reshape((n_samples, self.input_shape[0], self.input_shape[1], self.input_shape[2])) # FIXME: reshaping from (n_samples, height * width) to (n_samples, n_feature_maps, height, width)
         o = T.unbroadcast(o, 1)
 
         return h, c, o

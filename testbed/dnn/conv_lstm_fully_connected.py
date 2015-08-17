@@ -140,12 +140,14 @@ class ConvLSTMFullyConnected(Model):
         # training phase
         uidx = 0  # the number of update done
         estop = False  # early stop
+        costs = []
         for eidx in xrange(epochs):
             n_samples = 0
 
             # Get new shuffled index for the training set.
             kf = self.get_minibatches_idx(train_idx, batch_size, shuffle=True)
 
+            avg_cost = 0
             for _, train_index in kf:
                 uidx += 1
                 #use_noise.set_value(1.) # TODO: implement dropout?
@@ -163,12 +165,14 @@ class ConvLSTMFullyConnected(Model):
                 cost = self.f_grad_shared(x, mask, y)
                 self.f_update(learning_rate)
 
+                avg_cost += cost / len(kf)
+
                 if numpy.isnan(cost) or numpy.isinf(cost):
                     print 'NaN detected'
                     return 1., 1., 1.
 
                 if numpy.mod(uidx, dispFreq) == 0:
-                    #print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                    # print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
                     pass
 
                 if numpy.mod(uidx, validFreq) == 0:
@@ -192,11 +196,14 @@ class ConvLSTMFullyConnected(Model):
                             estop = True
                             break
 
+                costs.append(avg_cost)
+
             print 'Seen %d samples' % n_samples
 
             if estop:
                 break
-        return
+
+        return numpy.average(costs)
 
     def validate(self, dataset, valid_idx, batch_size):
         n_validate_batches = len(valid_idx) / batch_size
