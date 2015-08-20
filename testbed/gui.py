@@ -15,7 +15,7 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as Naviga
 import numpy
 
 from testbed import TestBed
-from generator import Generator
+from generator import RadarGenerator
 from visualizer import Visualizer
 import utils
 
@@ -36,7 +36,7 @@ class Worker(QtCore.QThread):
 
     def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10], pretrain_step=20):
         self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        self.gen = Generator(w=w, h=h, d=d)
+        self.gen = RadarGenerator("../data/radar", w=w, h=h)
         self.vis = Visualizer(w=w, h=h)
         self.pretrain_step = pretrain_step
 

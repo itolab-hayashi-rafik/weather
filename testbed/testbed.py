@@ -10,7 +10,7 @@ import theano
 from theano import tensor as T
 
 import dnn
-from generator import Generator
+from generator import RadarGenerator
 import utils
 
 class TestBed(object):
@@ -33,13 +33,13 @@ class TestBed(object):
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
         numpy_rng = numpy.random.RandomState(89677)
-        # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
-
         # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,n,n), which means it has one n*n sized filter
         filter_shapes = [(2,d,k,k) for k in hidden_layers_sizes]
-        self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+
+        # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
     def supply(self, data):
         self.dataset.append(data)
@@ -90,7 +90,7 @@ class TestBed(object):
 
 if __name__ == '__main__':
     bed = TestBed()
-    gen = Generator(w=bed.w, h=bed.h, d=bed.d)
+    gen = RadarGenerator("../data/radar", w=bed.w, h=bed.h)
 
     # fill the window with data
     for i in xrange(bed.window_size):

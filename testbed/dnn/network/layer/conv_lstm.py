@@ -106,7 +106,7 @@ class ConvLSTM(RNN):
             self.random_initialization((self.n_in, self.n_out)),
             self.random_initialization((self.n_in, self.n_out)),
         ], axis=1)
-        self.LSTM_W = self._shared(LSTM_W_value, name="LSTM_W")
+        self.LSTM_W = self._shared(LSTM_W_value, name="LSTM_W", borrow=True)
 
         LSTM_U_value = numpy.concatenate([
             ConvLSTM._ortho_weight(self.n_out),
@@ -114,10 +114,10 @@ class ConvLSTM(RNN):
             ConvLSTM._ortho_weight(self.n_out),
             ConvLSTM._ortho_weight(self.n_out),
         ], axis=1)
-        self.LSTM_U = self._shared(LSTM_U_value, name="LSTM_U")
+        self.LSTM_U = self._shared(LSTM_U_value, name="LSTM_U", borrow=True)
 
         LSTM_b_value = numpy.zeros((4 * self.n_out,), dtype=theano.config.floatX)
-        self.LSTM_b = self._shared(LSTM_b_value, name="LSTM_b")
+        self.LSTM_b = self._shared(LSTM_b_value, name="LSTM_b", borrow=True)
 
     def step(self, m_, x_, h_, c_):
         # x_ should be of shape (batch size, nb feature maps, input height, input width)

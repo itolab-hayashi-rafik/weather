@@ -43,7 +43,7 @@ class LSTM(RNN):
             self.random_initialization((self.n_in, self.n_out)),
             self.random_initialization((self.n_in, self.n_out)),
         ], axis=1)
-        self.W = self._shared(W_value, name="W")
+        self.W = self._shared(W_value, name="W", borrow=True)
 
         U_value = numpy.concatenate([
             LSTM._ortho_weight(self.n_out),
@@ -57,10 +57,10 @@ class LSTM(RNN):
         #     self.random_initialization((self.n_in, self.n_out)),
         #     self.random_initialization((self.n_in, self.n_out)),
         # ], axis=1)
-        self.U = self._shared(U_value, name="U")
+        self.U = self._shared(U_value, name="U", borrow=True)
 
         b_value = numpy.zeros((4 * self.n_out,), dtype=theano.config.floatX)
-        self.b = self._shared(b_value, name="b")
+        self.b = self._shared(b_value, name="b", borrow=True)
 
     def step(self, m_, x_, h_, c_):
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
