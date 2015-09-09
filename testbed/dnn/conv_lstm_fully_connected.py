@@ -42,7 +42,7 @@ class ConvLSTMFullyConnected(Model):
         print('done')
 
         print('LSTMFullyConnected: building predict function...'),
-        self.predict_fn = self.dnn.build_prediction_function()
+        self.f_predict = self.dnn.build_prediction_function()
         print('done')
 
     def _make_input(self, dataset, idx):
@@ -163,7 +163,9 @@ class ConvLSTMFullyConnected(Model):
                 n_samples += x.shape[1]
 
                 cost = self.f_grad_shared(x, mask, y)
-                self.f_update(learning_rate)
+
+                if cost != 0.0:
+                    self.f_update(learning_rate)
 
                 avg_cost += cost / len(kf)
 
@@ -231,5 +233,5 @@ class ConvLSTMFullyConnected(Model):
     def predict(self, dataset):
         x = self._make_input(dataset, [len(dataset)-self.n])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
-        y = self.predict_fn(x, mask).reshape((self.d, self.h, self.w))
+        y = self.f_predict(x, mask).reshape((self.d, self.h, self.w))
         return y

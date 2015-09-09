@@ -41,7 +41,7 @@ class ConvLSTM(RNN):
         self.border_mode = border_mode
 
         # LSTM receives in total:
-        # "input height * input width / pooling size" inputs
+        # "num of output feature maps * input height * input width / pooling size" inputs
         n_in = numpy.prod(input_shape[1:]) / numpy.prod(poolsize)
 
         # the num of output units is the same as that of input, so that the ConvLSTM in the next layer
@@ -159,10 +159,10 @@ class ConvLSTM(RNN):
 
         # at this point, the tensor x_ is shape of (n_samples, nb filters, input height, input width)
         # we concatenate the values through filters by calculating their sum
-        # to make its shape (n_samples, input height, input width)
-        x_ = T.sum(x_, axis=1)
+        # to make its shape (n_samples, input height, input width) # fiXME:
+        # x_ = T.sum(x_, axis=1)
 
-        # we flatten this tensor to (n_samples, self.n_in), which is (n_samples, height * width)
+        # we flatten this tensor to (n_samples, self.n_in), which is (n_samples, num of output feature maps * height * width)
         x_ = x_.reshape((n_samples, self.n_in))
 
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * self.n_in の入力 3d tensor から

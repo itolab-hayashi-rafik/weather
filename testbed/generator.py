@@ -43,10 +43,12 @@ class SinGenerator(Generator):
         return numpy.asarray(data, dtype=theano.config.floatX)
 
 class RadarGenerator(Generator):
-    def __init__(self, dir, w=0, h=0):
+    def __init__(self, dir, w=0, h=0, left=0, top=0):
         super(RadarGenerator, self).__init__(w=w, h=h, d=1)
         dir = os.path.join(os.path.dirname(__file__), dir)
         self.dir = dir
+        self.left = left
+        self.top = top
 
         cwd = os.getcwd()
         os.chdir(dir)
@@ -75,11 +77,16 @@ class RadarGenerator(Generator):
 
             n_rows, n_cols = map(lambda x: int(x), grid)
 
+            w = self.w if 0 < self.w else n_cols
+            h = self.h if 0 < self.h else n_rows
+            w = w - self.left if n_cols < self.left + w else w
+            h = h - self.top if n_rows < self.top + h else h
+
             for timeline in reader:
                 chunk = []
                 for row in xrange(n_rows):
                     line = next(reader)
-                    chunk.append(line[:self.w] if 0 < self.w and self.w < n_cols else line)
-                data.append(chunk[:self.h] if 0 < self.h and self.h < n_rows else chunk)
+                    chunk.append(line[self.left:self.left+w])
+                data.append(chunk[self.top:self.top+h])
 
-        return numpy.asarray(data, dtype=theano.config.floatX)
+        return numpy.asarray(data, dtype=theano.config.floatX) / 100.0

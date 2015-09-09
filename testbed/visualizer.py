@@ -1,5 +1,8 @@
+import time
 import numpy
 import pylab as plt
+
+from generator import SinGenerator, RadarGenerator
 
 VIS_DEPTH = 0
 
@@ -21,7 +24,7 @@ class ObservationLocation:
         self.plot_y = self.ax.plot(self.vis.data_x, data_y, 'b.-')
         self.plot_y_pred = self.ax.plot(self.vis.data_x, data_y_pred, 'r.-')
 
-        plt.show()
+        plt.show(block=False)
 
     def update(self):
         x, y = self.xy
@@ -47,7 +50,7 @@ class Visualizer:
         self.fig_y.canvas.mpl_connect('button_press_event', self.onclick)
         self.im_y = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
         self.colorbar_y = plt.colorbar()
-        plt.show()
+        plt.show(block=False)
 
         # y_pred
         self.fig_y_pred = plt.figure(2)
@@ -55,11 +58,17 @@ class Visualizer:
         self.fig_y_pred.canvas.mpl_connect('button_press_event', self.onclick)
         self.im_y_pred = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
         self.colorbar_y_pred = plt.colorbar()
-        plt.show()
+        plt.show(block=False)
+
+        # learning curve
+        self.fig_lc = plt.figure(3)
+        plt.clf()
+        self.ax_lc = plt.subplot(111)
+        plt.show(block=False)
 
         # observations
         self.observation_locations = []
-        self.next_fignum = 3
+        self.next_fignum = 4
 
         self.last_x = -1
         self.xlim=xlim
@@ -112,3 +121,17 @@ class Visualizer:
     def onclick(self, event):
         xy = (int(event.xdata), int(event.ydata))
         self.addObservationLocation(xy)
+
+
+if __name__ == '__main__':
+    w = 28
+    h = 28
+    delay = 0.1
+    gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
+    vis = Visualizer(w=w, h=h)
+
+    time.sleep(10)
+    for i,y in enumerate(gen):
+        print("{}: max={}".format(i,numpy.max(y)))
+        vis.append(y, y)
+        time.sleep(delay)
