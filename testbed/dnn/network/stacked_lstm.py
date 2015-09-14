@@ -96,7 +96,7 @@ class StackedLSTM(Network):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
-        proj = rval[-2][-1]
+        proj = rval[-1][-1]
         # In case of averaging i.e mean pooling as defined in the paper , we take all
         # the sequence of steps for all batch samples and then take a average of
         # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
