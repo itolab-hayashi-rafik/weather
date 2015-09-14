@@ -93,10 +93,10 @@ class ConvLSTMFullyConnected(Model):
         maxlen = numpy.max(lengths) # n_timesteps
 
         x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
-        x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
+        x_mask = numpy.zeros((maxlen, n_samples, self.d), dtype=theano.config.floatX)
         for idx, s in enumerate(xs):
             x[:lengths[idx], idx, :, :, :] = s
-            x_mask[:lengths[idx], idx] = 1.
+            x_mask[:lengths[idx], idx, :] = 1.
 
         return x, x_mask, ys
 

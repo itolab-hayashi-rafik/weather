@@ -62,6 +62,11 @@ class StackedLSTM(Network):
                          nrng=numpy_rng,
                          trng=theano_rng)
             self.lstm_layers.append(layer)
+            self.params.extend(layer.params)
+
+        outputs_info = []
+        for layer in self.lstm_layers:
+            outputs_info += layer.outputs_info(n_samples)
 
         def step(m, x, *prev_states):
             x_ = x
@@ -77,18 +82,9 @@ class StackedLSTM(Network):
             step,
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
-            outputs_info=(
-                [
-                    dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, hidden_layers_sizes[i]), taps=[-1])
-                        for j in xrange(2) # for c, h
-                            for i in xrange(self.n_layers)
-                ]
-            ), # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            outputs_info=outputs_info,
             name="LSTM_layers"
         )
-
-        for layer in self.lstm_layers:
-            self.params.extend(layer.params)
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
         #assert(len(rval) == 3*self.n_layers)

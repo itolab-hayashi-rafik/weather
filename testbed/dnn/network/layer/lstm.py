@@ -56,6 +56,12 @@ class LSTM(RNN):
 
         return c, h
 
+    def outputs_info(self, n_samples):
+        return [
+            dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_out), [False, False]), taps=[-1]), # c
+            dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.n_out), [False, False]), taps=[-1]), # h
+        ]
+
     @property
     def params(self):
         return [self.Wf, self.bf, self.Wi, self.bi, self.Wc, self.bc, self.Wo, self.bo]

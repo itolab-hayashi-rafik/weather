@@ -29,6 +29,9 @@ class RNN(base.Layer):
         else:
             return self.activation(lin_output)
 
+    def outputs_info(self, *args, **kwargs):
+        return []
+
     @property
     def output(self):
         raise NotImplementedError

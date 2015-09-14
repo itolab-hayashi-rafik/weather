@@ -57,7 +57,9 @@ class StackedConvLSTM(Network):
         # allocate symbolic variables for the data
         # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
         self.x = tensor5('x', dtype=theano.config.floatX) # the input minibatch data
-        self.mask = T.matrix('mask', dtype=theano.config.floatX)
+        #self.x = T.patternbroadcast(self.x, [False, True, False, False, False]) # make the 2nd axis broadcastable to make the number of samples is changeable
+        # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
+        self.mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
         # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
         self.y = T.tensor4('y', dtype=theano.config.floatX)  # the regression is presented as real values
         # end-snippet-1
@@ -89,18 +91,15 @@ class StackedConvLSTM(Network):
             x_ = x
             new_states = []
             for i, layer in enumerate(self.conv_lstm_layers):
-                h_, c_, _ = prev_states[3*i], prev_states[3*i+1], prev_states[3*i+2]
-                layer_out = layer.step(m, x_, h_, c_)
-                _, _, x_ = layer_out # hidden, c, output
+                c_, h_ = prev_states[2*i], prev_states[2*i+1]
+                layer_out = layer.step(m, x_, c_, h_)
+                _, x_ = layer_out # hidden, c
                 new_states += layer_out
             return new_states
 
         outputs_info = []
-        for i in xrange(self.n_layers):
-            os = self.conv_lstm_layers[i].output_shape
-            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # h_
-            outputs_info.append(dict(initial=T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, self.conv_lstm_layers[i].n_in), taps=[-1])) # c_
-            outputs_info.append(dict(initial=T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, os[0], os[1], os[2]), 1), taps=[-1])) # o_ (x_)
+        for layer in self.conv_lstm_layers:
+            outputs_info += layer.outputs_info(n_samples)
 
         rval, updates = theano.scan(
             step,
@@ -114,8 +113,7 @@ class StackedConvLSTM(Network):
         #assert(len(rval) == 3*self.n_layers)
         # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_o
-        # * rval[3]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
+        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
         proj = rval[-1][-1]
         # In case of averaging i.e mean pooling as defined in the paper , we take all
