@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import pdb, traceback, sys
 import numpy
 import theano
 import theano.tensor as T
@@ -171,6 +172,9 @@ class ConvLSTMFullyConnected(Model):
 
                 if numpy.isnan(cost) or numpy.isinf(cost):
                     print 'NaN detected'
+                    type, value, tb = sys.exc_info()
+                    traceback.print_exc()
+                    pdb.post_mortem(tb)
                     return 1., 1., 1.
 
                 if numpy.mod(uidx, dispFreq) == 0:
