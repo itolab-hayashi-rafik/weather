@@ -41,8 +41,6 @@ class LSTM(RNN):
 
 
     def step(self, m_, x_, c_, h_):
-        n_samples = x_.shape[0]
-
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
         obs = T.concatenate([c_, h_, x_], axis=1)
