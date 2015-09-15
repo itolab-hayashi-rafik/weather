@@ -21,7 +21,10 @@ def ndarray(x):
         return x
     return numpy.asarray(x, dtype=theano.config.floatX)
 
-def flatten(i):
+def flatten(l):
+    return list(flattened(l))
+
+def flattened(i):
     for a in i:
         if hasattr(a, '__iter__'):
             for b in flatten(a):
