@@ -3,6 +3,7 @@ import numpy
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.gof.utils import flatten
 
 from base import Network
 from layer.lstm import LSTM
@@ -19,55 +20,75 @@ class StackedLSTM(Network):
             self,
             numpy_rng,
             theano_rng=None,
+            input=None,
+            mask=None,
             n_ins=784,
             hidden_layers_sizes=[500, 500],
-            n_outs=10
+            n_outs=10,
+            initial_hidden_states=None
     ):
-        super(StackedLSTM, self).__init__()
-
         self.n_ins = n_ins
         self.n_outs = n_outs
+        self.hidden_layers_sizes = hidden_layers_sizes
+        self.initial_hidden_states = initial_hidden_states
         self.lstm_layers = []
         self.params = []
         self.n_layers = len(hidden_layers_sizes)
 
         assert self.n_layers > 0
+        if self.initial_hidden_states is not None:
+            assert len(self.initial_hidden_states) == self.n_layers
 
-        if not theano_rng:
-            theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
+        self.x = input
+        self.mask = mask
+        self.y = None
 
+        super(StackedLSTM, self).__init__(numpy_rng, theano_rng)
+
+    def setup(self):
         # allocate symbolic variables for the data
-        self.x = T.tensor3('x', dtype=theano.config.floatX) # the input minibatch data
-        self.mask = T.matrix('mask', dtype=theano.config.floatX)
-        self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
-        # end-snippet-1
+        if self.x is None:
+            # the input minibatch data is of shape (n_timestep, n_samples, dim_proj)
+            self.x = T.tensor3('x', dtype=theano.config.floatX) # the input minibatch data
+        if self.mask is None:
+            # the input minibatch mask is of shape (n_timestep, n_samples)
+            self.mask = T.matrix('mask', dtype=theano.config.floatX)
+        if self.y is None:
+            # the output minibatch data is of shape (n_samples, dim_proj)
+            self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
 
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
         # construct LSTM layers
         self.lstm_layers = []
-        for i, n_hidden in enumerate(hidden_layers_sizes):
+        for i, n_hidden in enumerate(self.hidden_layers_sizes):
             # determine input size
             if i == 0:
-                input_size = n_ins
+                input_size = self.n_ins
             else:
-                input_size = hidden_layers_sizes[i - 1]
+                input_size = self.hidden_layers_sizes[i - 1]
 
             # build an LSTM layer
             layer = LSTM(n_in=input_size,
-                         n_out=hidden_layers_sizes[i],
+                         n_out=self.hidden_layers_sizes[i],
                          activation=T.tanh,
                          prefix="LSTM{}".format(i),
-                         nrng=numpy_rng,
-                         trng=theano_rng)
+                         nrng=self.numpy_rng,
+                         trng=self.theano_rng)
             self.lstm_layers.append(layer)
             self.params.extend(layer.params)
 
-        outputs_info = []
-        for layer in self.lstm_layers:
-            outputs_info += layer.outputs_info(n_samples)
+        # set initial states of layers
+        if self.initial_hidden_states is not None:
+            # flatten the given state list
+            outputs_info = [param for layer in self.initial_hidden_states for param in layer]
+        else:
+            outputs_info = []
+            for layer in self.lstm_layers:
+                outputs_info += layer.outputs_info(n_samples)
 
+        # feed forward calculation
         def step(m, x, *prev_states):
             x_ = x
             new_states = []
@@ -85,6 +106,7 @@ class StackedLSTM(Network):
             outputs_info=outputs_info,
             name="LSTM_layers"
         )
+        self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
         #assert(len(rval) == 3*self.n_layers)
@@ -92,40 +114,51 @@ class StackedLSTM(Network):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
-        proj = rval[-1][-1]
-        # In case of averaging i.e mean pooling as defined in the paper , we take all
-        # the sequence of steps for all batch samples and then take a average of
-        # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
-        # see: http://theano-users.narkive.com/FPNQYJIf/problem-in-understanding-lstm-code-not-able-to-understand-the-flow-of-code-http-deeplearning-net
-        # proj = (proj * self.mask[:, :, None]).sum(axis=0)
-        # proj = proj / self.mask.sum(axis=0)[:, None]
 
-        # We now need to add a logistic layer on top of the Stacked LSTM
-        self.linLayer = LinearRegression(
-            input=proj,
-            n_in=hidden_layers_sizes[-1],
-            n_out=n_outs,
-            activation=T.tanh,
-            prefix="linLayer",
-            nrng=numpy_rng,
-            trng=theano_rng,
-        )
+        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
 
-        self.params.extend(self.linLayer.params)
+    @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
 
-        self.y_pred = self.linLayer.output
-        self.errors = (self.y_pred - self.y).norm(L=2) / n_timesteps
-        self.finetune_cost = self.errors
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
+
+    @property
+    def last_states(self):
+        return [
+            [
+                self.rval[2*i][-1],     # LSTM[i].c[T]
+                self.rval[2*i+1][-1],   # LSTM[i].h[T]
+            ] for i in xrange(self.n_layers)
+        ]
+
+    @property
+    def params(self):
+        return [[layer.params] for layer in self.lstm_layers]
+
+    @params.setter
+    def params(self, param_list):
+        for layer, params in zip(self.lstm_layers, param_list):
+            layer.params = params
 
     def build_finetune_function(self, optimizer=O.adadelta):
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
         cost = self.finetune_cost
-        grads = T.grad(cost, self.params)
+        params = flatten(self.params)
+        grads = T.grad(cost, params)
 
         f_validate = theano.function([self.x, self.mask, self.y], cost)
 
-        f_grad_shared, f_update = optimizer(learning_rate, self.params, grads,
+        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
                                             self.x, self.mask, self.y, cost)
 
         return (f_grad_shared, f_update, f_validate)
@@ -133,5 +166,5 @@ class StackedLSTM(Network):
     def build_prediction_function(self):
         return theano.function(
             [self.x, self.mask],
-            outputs=self.y_pred
+            outputs=self.output
         )

@@ -1,27 +1,40 @@
 # -*- coding: utf-8 -*-
+import pdb, traceback, sys
 import numpy
 import theano
 import theano.tensor as T
 
 from base import Model
-from network.stacked_lstm import StackedLSTM
+import network
 
-class LSTMFullyConnected(Model):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[10]):
+class EncoderDecoderConvLSTM(Model):
+    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, filter_shapes=[(1,1,3,3)]):
+        '''
+        Initialize ConvLSTM Encoder-Decoder model
+        :param numpy_rng:
+        :param n:
+        :param d:
+        :param w:
+        :param h:
+
+        :type filter_shapes: list of "tuple or list of length 4"
+        :param filter_shapes: [(number of filters, num input feature maps,
+                              filter height, filter width)]
+        :return:
+        '''
         self.n = n
         self.d = d
         self.w = w
         self.h = h
         self.n_inputs = d*w*h
-        self.n_hidden_layers = len(hidden_layers_sizes)
+        self.n_conv_lstm_layers = len(filter_shapes)
         self.n_outputs = d*w*h
 
         print('LSTMFullyConnected: building the model...'),
-        self.dnn = StackedLSTM(
+        self.dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
-            n_ins=self.n_inputs,
-            hidden_layers_sizes=hidden_layers_sizes,
-            n_outs=self.n_outputs
+            input_shape=(d,h,w),
+            filter_shapes=filter_shapes
         )
         print('done')
 
@@ -30,7 +43,7 @@ class LSTMFullyConnected(Model):
         print('done')
 
         print('LSTMFullyConnected: building predict function...'),
-        self.predict_fn = self.dnn.build_prediction_function()
+        self.f_predict = self.dnn.build_prediction_function()
         print('done')
 
     def _make_input(self, dataset, idx):
@@ -39,7 +52,7 @@ class LSTMFullyConnected(Model):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.n_inputs))
+        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.d, self.h, self.w))
 
     def _make_output(self, dataset, idx):
         '''
@@ -47,7 +60,7 @@ class LSTMFullyConnected(Model):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.n_outputs))
+        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.d, self.h, self.w))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -79,11 +92,11 @@ class LSTMFullyConnected(Model):
         n_samples = len(xs)
         maxlen = numpy.max(lengths) # n_timesteps
 
-        x = numpy.zeros((maxlen, n_samples, self.n_inputs), dtype=theano.config.floatX)
-        x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
+        x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
+        x_mask = numpy.zeros((maxlen, n_samples, self.d), dtype=theano.config.floatX)
         for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :] = s
-            x_mask[:lengths[idx], idx] = 1.
+            x[:lengths[idx], idx, :, :, :] = s
+            x_mask[:lengths[idx], idx, :] = 1.
 
         return x, x_mask, ys
 
@@ -128,12 +141,14 @@ class LSTMFullyConnected(Model):
         # training phase
         uidx = 0  # the number of update done
         estop = False  # early stop
+        costs = []
         for eidx in xrange(epochs):
             n_samples = 0
 
             # Get new shuffled index for the training set.
             kf = self.get_minibatches_idx(train_idx, batch_size, shuffle=True)
 
+            avg_cost = 0
             for _, train_index in kf:
                 uidx += 1
                 #use_noise.set_value(1.) # TODO: implement dropout?
@@ -149,14 +164,21 @@ class LSTMFullyConnected(Model):
                 n_samples += x.shape[1]
 
                 cost = self.f_grad_shared(x, mask, y)
-                self.f_update(learning_rate)
+
+                if cost != 0.0:
+                    self.f_update(learning_rate)
+
+                avg_cost += cost / len(kf)
 
                 if numpy.isnan(cost) or numpy.isinf(cost):
                     print 'NaN detected'
+                    type, value, tb = sys.exc_info()
+                    traceback.print_exc()
+                    pdb.post_mortem(tb)
                     return 1., 1., 1.
 
                 if numpy.mod(uidx, dispFreq) == 0:
-                    #print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                    # print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
                     pass
 
                 if numpy.mod(uidx, validFreq) == 0:
@@ -180,11 +202,14 @@ class LSTMFullyConnected(Model):
                             estop = True
                             break
 
+                costs.append(avg_cost)
+
             print 'Seen %d samples' % n_samples
 
             if estop:
                 break
-        return
+
+        return numpy.average(costs)
 
     def validate(self, dataset, valid_idx, batch_size):
         n_validate_batches = len(valid_idx) / batch_size
@@ -212,5 +237,5 @@ class LSTMFullyConnected(Model):
     def predict(self, dataset):
         x = self._make_input(dataset, [len(dataset)-self.n])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
-        y = self.predict_fn(x, mask).reshape((self.d, self.h, self.w))
+        y = self.f_predict(x, mask).reshape((self.d, self.h, self.w))
         return y

@@ -2,9 +2,9 @@ import numpy
 import theano
 import theano.tensor as T
 
-import base
+from base import Layer
 
-class LinearRegression(base.Layer):
+class LinearRegression(Layer):
     def setup(self):
         super(LinearRegression, self).setup()
         self.y_pred = self.output

@@ -86,7 +86,7 @@ class dA(Network):
 
 
         """
-        super(dA, self).__init__()
+        super(dA, self).__init__(numpy_rng, theano_rng)
 
         self.n_visible = n_visible
         self.n_hidden = n_hidden

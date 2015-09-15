@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
 
-import collections
 import numpy
 import theano
 import theano.tensor as T
@@ -22,23 +21,13 @@ def ndarray(x):
         return x
     return numpy.asarray(x, dtype=theano.config.floatX)
 
-def flatten(list):
-    '''
-    flatten a list
-    :param list:
-    :return:
-    '''
-    i = 0
-    while i < len(list):
-        while isinstance(list[i], collections.Iterable):
-            if not list[i]:
-                list.pop(i)
-                i -= 1
-                break
-            else:
-                list[i:i + 1] = list[i]
-        i += 1
-    return list
+def flatten(i):
+    for a in i:
+        if hasattr(a, '__iter__'):
+            for b in flatten(a):
+                yield b
+        else:
+            yield a
 
 def generateImage(data):
     '''

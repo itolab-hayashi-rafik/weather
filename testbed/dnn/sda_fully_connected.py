@@ -5,7 +5,7 @@ import numpy
 import theano
 import theano.tensor as T
 
-from model import Model
+from base import Model
 from network.SdA import SdA
 
 class SdAFullyConnected(Model):

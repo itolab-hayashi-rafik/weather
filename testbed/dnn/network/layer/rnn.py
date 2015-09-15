@@ -2,11 +2,11 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-import base
+from base import Layer
 
 mode = theano.Mode(linker='cvm')
 
-class RNN(base.Layer):
+class RNN(Layer):
     """
     Recurrent Neural Network
     """

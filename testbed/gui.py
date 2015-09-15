@@ -36,8 +36,8 @@ class Worker(QtCore.QThread):
 
     def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[10], pretrain_step=20):
         self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        # self.gen = SinGenerator(w=w, h=h, d=1)
-        self.gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
+        self.gen = SinGenerator(w=w, h=h, d=1)
+        # self.gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
         self.vis = Visualizer(w=w, h=h)
         self.pretrain_step = pretrain_step
 

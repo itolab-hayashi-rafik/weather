@@ -53,7 +53,7 @@ class SdA(Network):
         :param corruption_levels: amount of corruption to use for each
                                   layer
         """
-        super(SdA, self).__init__()
+        super(SdA, self).__init__(numpy_rng, theano_rng)
 
         self.sigmoid_layers = []
         self.dA_layers = []

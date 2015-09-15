@@ -3,6 +3,7 @@ import numpy
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.gof.utils import flatten
 
 from base import Network, tensor5
 from layer.conv_lstm import ConvLSTM
@@ -19,74 +20,88 @@ class StackedConvLSTM(Network):
             self,
             numpy_rng,
             theano_rng=None,
+            input=None,
+            mask=None,
             input_shape=(1,28,28),
-            filter_shapes=[(1,1,3,3)]
+            filter_shapes=[(1,1,3,3)],
+            initial_hidden_states=None
     ):
         '''
         Initialize StackedConvLSTM
         :param numpy_rng:
         :param theano_rng:
 
-        :type input_shape: tuple or list of length 4
-        :param input_shape: (batch size, num input feature maps,
-                             image height, image width)
+        :type input_shape: tuple or list of length 3
+        :param input_shape: (num input feature maps, image height, image width)
 
         :type filter_shapes: list of "tuple or list of length 4"
-        :param filter_shapes: [(number of filters, num input feature maps,
-                               filter height, filter width)]
+        :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
 
-        :type output_shape: tuple or list of length 3
-        :param output_shape: (output feature maps,
-                              image height, image width)
+        :type initial_hidden_states: list of initial hidden states
+        :param initial_hidden_states: list of initial hidden states
         :return:
         '''
-        super(StackedConvLSTM, self).__init__()
-
         self.input_shape = input_shape
         self.filter_shapes = filter_shapes
+        self.output_shape = (input_shape[0], filter_shapes[-1][0], input_shape[1], input_shape[2])
+        self.initial_hidden_states = initial_hidden_states
         self.n_outs = numpy.prod(input_shape[1:])
         self.conv_lstm_layers = []
-        self.params = []
         self.n_layers = len(filter_shapes)
 
         assert self.n_layers > 0
+        if self.initial_hidden_states is not None:
+            assert len(self.initial_hidden_states) == self.n_layers
 
-        if not theano_rng:
-            theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
+        self.x = input
+        self.mask = mask
+        self.y = None
 
-        # allocate symbolic variables for the data
-        # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
-        self.x = tensor5('x', dtype=theano.config.floatX) # the input minibatch data
-        #self.x = T.patternbroadcast(self.x, [False, True, False, False, False]) # make the 2nd axis broadcastable to make the number of samples is changeable
-        # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
-        self.mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
-        # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
-        self.y = T.tensor4('y', dtype=theano.config.floatX)  # the regression is presented as real values
-        # end-snippet-1
+        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng)
+
+    def setup(self):
+        if self.x is None:
+            # allocate symbolic variables for the data
+            # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
+            self.x = tensor5('x', dtype=theano.config.floatX) # the input minibatch data
+        if self.mask is None:
+            # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
+            self.mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
+        if self.y is None:
+            # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
+            self.y = T.tensor4('y', dtype=theano.config.floatX)  # the regression is presented as real values
 
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
         # construct LSTM layers
         self.conv_lstm_layers = []
-        for i, n_hidden in enumerate(filter_shapes):
+        for i, n_hidden in enumerate(self.filter_shapes):
             # determine input size
             if i == 0:
-                s_in = input_shape
+                s_in = self.input_shape
             else:
                 s_in = self.conv_lstm_layers[-1].output_shape
 
             # build an LSTM layer
             layer = ConvLSTM(input_shape=s_in,
-                             filter_shape=filter_shapes[i],
+                             filter_shape=self.filter_shapes[i],
                              activation=T.tanh,
                              prefix="ConvLSTM{}".format(i),
-                             nrng=numpy_rng,
-                             trng=theano_rng)
+                             nrng=self.numpy_rng,
+                             trng=self.theano_rng)
             self.conv_lstm_layers.append(layer)
 
-            self.params.extend(layer.params)
+        # set initial states of layers
+        if self.initial_hidden_states is not None:
+            # flatten the given state list
+            outputs_info = [param for layer in self.initial_hidden_states for param in layer]
+        else:
+            outputs_info = []
+            for layer in self.conv_lstm_layers:
+                outputs_info += layer.outputs_info(n_samples)
 
+        # feed forward calculation
         def step(m, x, *prev_states):
             x_ = x
             new_states = []
@@ -97,10 +112,6 @@ class StackedConvLSTM(Network):
                 new_states += layer_out
             return new_states
 
-        outputs_info = []
-        for layer in self.conv_lstm_layers:
-            outputs_info += layer.outputs_info(n_samples)
-
         rval, updates = theano.scan(
             step,
             sequences=[self.mask, self.x],
@@ -108,48 +119,59 @@ class StackedConvLSTM(Network):
             outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
             name="ConvLSTM_layers"
         )
+        self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
         #assert(len(rval) == 3*self.n_layers)
-        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
-        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
+        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
+        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
+        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
-        proj = rval[-1][-1]
-        # In case of averaging i.e mean pooling as defined in the paper , we take all
-        # the sequence of steps for all batch samples and then take a average of
-        # it(sentence wise axis=0 ) and give this sum of sentences of size (16*128)
-        # see: http://theano-users.narkive.com/FPNQYJIf/problem-in-understanding-lstm-code-not-able-to-understand-the-flow-of-code-http-deeplearning-net
-        # proj = (proj * self.mask[:, :, None]).sum(axis=0)
-        # proj = proj / self.mask.sum(axis=0)[:, None]
 
-        # We now need to add a logistic layer on top of the Stacked LSTM
-        # self.linLayer = LinearRegression(
-        #     input=proj,
-        #     n_in=self.conv_lstm_layers[-1].n_out,
-        #     n_out=self.n_outs,
-        #     activation=T.tanh,
-        #     prefix="linLayer",
-        #     nrng=numpy_rng,
-        #     trng=theano_rng,
-        # )
-        #
-        # self.params.extend(self.linLayer.params)
+        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
 
-        # self.y_pred = self.linLayer.output
-        self.y_pred = proj
-        self.errors = (self.y_pred - self.y).norm(L=2) / n_timesteps
-        self.finetune_cost = self.errors
+    @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
+
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
+
+    @property
+    def last_states(self):
+        return [
+            [
+                self.rval[2*i][-1],     # ConvLSTM[i].c[T]
+                self.rval[2*i+1][-1],   # ConvLSTM[i].h[T]
+            ] for i in xrange(self.n_layers)
+        ]
+
+    @property
+    def params(self):
+        return [[layer.params] for layer in self.conv_lstm_layers]
+
+    @params.setter
+    def params(self, param_list):
+        for layer, params in zip(self.conv_lstm_layers, param_list):
+            layer.params = params
 
     def build_finetune_function(self, optimizer=O.adadelta):
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
         cost = self.finetune_cost
-        grads = T.grad(cost, self.params)
+        params = flatten(self.params)
+        grads = T.grad(cost, params)
 
         f_validate = theano.function([self.x, self.mask, self.y], cost)
 
-        f_grad_shared, f_update = optimizer(learning_rate, self.params, grads,
+        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
                                             self.x, self.mask, self.y, cost)
 
         return (f_grad_shared, f_update, f_validate)
@@ -157,5 +179,5 @@ class StackedConvLSTM(Network):
     def build_prediction_function(self):
         return theano.function(
             [self.x, self.mask],
-            outputs=self.y_pred
+            outputs=self.output
         )

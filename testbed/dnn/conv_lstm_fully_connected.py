@@ -4,7 +4,7 @@ import numpy
 import theano
 import theano.tensor as T
 
-from model import Model
+from base import Model
 from network.stacked_conv_lstm import StackedConvLSTM
 
 class ConvLSTMFullyConnected(Model):

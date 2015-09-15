@@ -10,7 +10,7 @@ import theano
 from theano import tensor as T
 
 import dnn
-from generator import RadarGenerator
+from generator import SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
@@ -39,7 +39,9 @@ class TestBed(object):
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
-        self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+        # self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+        # self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
+        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
     def supply(self, data):
         self.dataset.append(data)
@@ -90,7 +92,8 @@ class TestBed(object):
 
 if __name__ == '__main__':
     bed = TestBed()
-    gen = RadarGenerator("../data/radar", w=bed.w, h=bed.h)
+    gen = SinGenerator(w=bed.w, h=bed.h, d=bed.d)
+    # gen = RadarGenerator("../data/radar", w=bed.w, h=bed.h)
 
     # fill the window with data
     for i in xrange(bed.window_size):
@@ -111,7 +114,7 @@ if __name__ == '__main__':
         #     pass
 
         # finetune
-        avg_cost = bed.finetune()
+        avg_cost = bed.finetune(batch_size=7)
         print(" finetune {}, train cost: {}".format(i,avg_cost))
 
         time.sleep(1)

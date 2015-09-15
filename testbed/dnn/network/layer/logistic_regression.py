@@ -2,9 +2,9 @@ import numpy
 import theano
 import theano.tensor as T
 
-import base
+from base import Layer
 
-class LogisticRegression(base.Layer):
+class LogisticRegression(Layer):
     """Multi-class Logistic Regression Class
 
     The logistic regression is fully described by a weight matrix :math:`W`

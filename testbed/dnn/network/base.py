@@ -1,6 +1,7 @@
 from theano.configparser import config
 from theano.tensor.basic import _multi
 from theano.tensor.type import TensorType
+from theano.tensor.shared_randomstreams import RandomStreams
 
 ctensor5 = TensorType('complex64', ((False,) * 5))
 ztensor5 = TensorType('complex128', ((False,) * 5))
@@ -26,5 +27,43 @@ tensor5s, ftensor5s, dtensor5s, itensor5s, ltensor5s = _multi(
 
 
 class Network(object):
-    def __init__(self):
+    def __init__(self, numpy_rng, theano_rng=None):
+        if not theano_rng:
+            theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
+
+        self.numpy_rng = numpy_rng
+        self.theano_rng = theano_rng
+
+        # setup the network
+        self.setup()
+
+    def setup(self):
+        pass
+
+    @property
+    def output(self):
+        '''
+        :return: the output of this network
+        '''
+        raise NotImplementedError
+
+    @property
+    def outputs(self):
+        '''
+        :return: list of output i.e. [output[0], output[1], ..., output[T]]
+        '''
+        raise NotImplementedError
+
+    @property
+    def params(self):
+        '''
+        :return: parameters in this network
+        '''
+        return []
+
+    @params.setter
+    def params(self, param_list):
+        '''
+        :param param_list: list of parameters
+        '''
         pass
