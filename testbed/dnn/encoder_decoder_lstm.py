@@ -212,5 +212,6 @@ class EncoderDecoderLSTM(Model):
     def predict(self, dataset):
         x = self._make_input(dataset, [len(dataset)-self.n])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
-        y = self.predict_fn(x, mask).reshape((self.d, self.h, self.w))
+        y = self.predict_fn(x, mask)
+        y = y.reshape((self.d, self.h, self.w))
         return y

@@ -4,7 +4,7 @@ import theano
 import theano.tensor as T
 
 from base import Model
-from network.stacked_lstm import StackedLSTM
+import network
 
 class LSTMFullyConnected(Model):
     def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[10]):
@@ -17,7 +17,7 @@ class LSTMFullyConnected(Model):
         self.n_outputs = d*w*h
 
         print('LSTMFullyConnected: building the model...'),
-        self.dnn = StackedLSTM(
+        self.dnn = network.StackedLSTM(
             numpy_rng,
             n_ins=self.n_inputs,
             hidden_layers_sizes=hidden_layers_sizes,

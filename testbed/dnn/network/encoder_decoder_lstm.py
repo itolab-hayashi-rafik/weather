@@ -6,7 +6,8 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from theano.gof.utils import flatten
 
 from base import Network, tensor5
-from stacked_lstm import StackedLSTM
+# from stacked_lstm import StackedLSTM
+from stacked_networks import StackedLSTMEncoder, StackedLSTMDecoder
 
 import optimizers as O
 
@@ -33,37 +34,55 @@ class EncoderDecoderLSTM(Network):
 
     def setup(self):
         # allocate symbolic variables for the data
-        # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
-        self.x = tensor5('x', dtype=theano.config.floatX) # the input minibatch data
+        # the input minibatch data is of shape (n_timestep, n_samples, length)
+        self.x = T.tensor3('x', dtype=theano.config.floatX) # the input minibatch data
         # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
-        self.mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
-        # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
-        self.y = T.tensor4('y', dtype=theano.config.floatX)  # the regression is presented as real values
+        self.mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
+        # the output minibatch data is of shape (n_samples, length)
+        self.y = T.matrix('y', dtype=theano.config.floatX)  # the regression is presented as real values
 
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
         # Encoder network
-        self.encoder = StackedLSTM(
+        # self.encoder = StackedLSTM(
+        #     self.numpy_rng,
+        #     theano_rng=self.theano_rng,
+        #     input=self.x,
+        #     mask=self.mask,
+        #     n_ins=self.n_ins,
+        #     hidden_layers_sizes=self.hidden_layers_sizes,
+        #     n_outs=self.n_outs
+        # )
+        self.encoder = StackedLSTMEncoder(
             self.numpy_rng,
             theano_rng=self.theano_rng,
             input=self.x,
             mask=self.mask,
+            output=self.y,
             n_ins=self.n_ins,
             hidden_layers_sizes=self.hidden_layers_sizes,
-            n_outs=self.n_outs
         )
 
         # Decoder network
-        self.decoder = StackedLSTM(
+        # self.decoder = StackedLSTM(
+        #     self.numpy_rng,
+        #     theano_rng=self.theano_rng,
+        #     input=self.x[-1].dimshuffle('x',0,1,2), # FIXME: input should be [x[-1], y[0], ..., y[T']] which requires recursive input of the output of decoder network
+        #     mask=self.mask, # FIXME: is this ok?
+        #     n_ins=self.n_outs,
+        #     hidden_layers_sizes=[s for s in reversed(self.hidden_layers_sizes)],
+        #     initial_hidden_states=[s for s in reversed(self.encoder.last_states)],
+        #     n_outs=self.n_ins
+        # )
+        self.decoder = StackedLSTMDecoder(
             self.numpy_rng,
             theano_rng=self.theano_rng,
-            input=self.encoder.outputs, # FIXME: outputs? use beam search?
+            input=self.x,
             mask=self.mask, # FIXME: is this ok?
-            n_ins=self.n_outs,
-            hidden_layers_sizes=[s for s in reversed(self.hidden_layers_sizes)],
-            initial_hidden_states=[s for s in reversed(self.encoder.last_states)],
-            n_outs=self.n_ins
+            output=self.y,
+            encoder=self.encoder,
+            n_timesteps=1 # FIXME
         )
 
         # calculate the cost
