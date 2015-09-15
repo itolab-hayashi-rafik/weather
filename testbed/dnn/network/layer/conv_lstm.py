@@ -80,9 +80,11 @@ class ConvLSTM(RNN):
 
         # reshape x_ so that the size of output tensor matches that of the input of LSTM
         if self.border_mode == 'full':
-            h_bound = self.filter_shape[2] / 2
-            w_bound = self.filter_shape[3] / 2
-            x = x[:, :, h_bound:-h_bound, w_bound:-w_bound]
+            h_bound_l = int(self.filter_shape[2] / 2)
+            h_bound_r = -h_bound_l if self.filter_shape[2] % 2 == 1 else -h_bound_l+1
+            w_bound_l = int(self.filter_shape[3] / 2)
+            w_bound_r = -w_bound_l if self.filter_shape[3] % 2 == 1 else -w_bound_l+1
+            x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
         elif self.border_mode == 'valid':
             pass
             # FIXME: fill the lacking value on the border by padding zero or copying the nearest value

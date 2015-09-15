@@ -4,6 +4,7 @@ sys.path.append('/usr/local/lib/python2.7/site-packages')
 
 import time
 import string
+import math
 
 import numpy
 import theano
@@ -14,7 +15,7 @@ from generator import SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[3]):
+    def __init__(self, window_size=100, n=2, w=28, h=28, d=1, hidden_layers_sizes=[100]):
         '''
         初期化する
         :param window_size:
@@ -33,15 +34,18 @@ class TestBed(object):
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
         numpy_rng = numpy.random.RandomState(89677)
-        # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,n,n), which means it has one n*n sized filter
-        filter_shapes = [(1,d,k,k) for k in hidden_layers_sizes]
+        # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,sqrt(n),sqrt(n)), which means it has one sqrt(n)*sqrt(n) sized filter
+        filter_shapes = []
+        for size in hidden_layers_sizes:
+            k = int(math.sqrt(size))
+            filter_shapes.append((1,d,k,k))
 
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
-        # self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
-        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+        self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
     def supply(self, data):
         self.dataset.append(data)
