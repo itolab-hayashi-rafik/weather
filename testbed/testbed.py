@@ -15,7 +15,7 @@ from generator import SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=100, n=2, w=28, h=28, d=1, hidden_layers_sizes=[100]):
+    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[3]):
         '''
         初期化する
         :param window_size:
@@ -35,17 +35,18 @@ class TestBed(object):
 
         numpy_rng = numpy.random.RandomState(89677)
         # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,sqrt(n),sqrt(n)), which means it has one sqrt(n)*sqrt(n) sized filter
-        filter_shapes = []
-        for size in hidden_layers_sizes:
-            k = int(math.sqrt(size))
-            filter_shapes.append((1,d,k,k))
+        filter_shapes = [(1,d,k,k) for k in hidden_layers_sizes]
 
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
-        self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+
+        # EncoderDecoderLSTM を使う場合は hidden_layers_sizes が [n_ins] + [...] + [n_ins] でないといけない.
+        # self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
+
+        # EncoderDecoderConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
+        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
     def supply(self, data):
         self.dataset.append(data)

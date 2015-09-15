@@ -34,7 +34,7 @@ class Worker(QtCore.QThread):
         self.stop_flg = False
         self.mutex = QtCore.QMutex()
 
-    def setup(self, window_size=20, n=2, w=28, h=28, d=1, hidden_layers_sizes=[100], pretrain_step=20):
+    def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[100], pretrain_step=20):
         self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         self.gen = SinGenerator(w=w, h=h, d=1)
         # self.gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
@@ -105,15 +105,15 @@ class Window(QtGui.QDialog):
         # Form
         self.window_size_line_edit = QtGui.QLineEdit('10')
         self.window_size_line_edit.textChanged.connect(self.dnnChanged)
-        self.w_line_edit = QtGui.QLineEdit('28')
+        self.w_line_edit = QtGui.QLineEdit('10')
         self.w_line_edit.textChanged.connect(self.dnnChanged)
-        self.h_line_edit = QtGui.QLineEdit('28')
+        self.h_line_edit = QtGui.QLineEdit('10')
         self.h_line_edit.textChanged.connect(self.dnnChanged)
         self.d_line_edit = QtGui.QLineEdit('1')
         self.d_line_edit.textChanged.connect(self.dnnChanged)
         self.n_line_edit = QtGui.QLineEdit('2')
         self.n_line_edit.textChanged.connect(self.dnnChanged)
-        self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('100')
+        self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('3')
         self.hidden_layer_sizes_line_edit.textChanged.connect(self.dnnChanged)
 
         self.input_form = QtGui.QFormLayout()
