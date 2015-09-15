@@ -21,7 +21,6 @@ class LSTMFullyConnected(Model):
             numpy_rng,
             n_ins=self.n_inputs,
             hidden_layers_sizes=hidden_layers_sizes,
-            n_outs=self.n_outputs
         )
         print('done')
 

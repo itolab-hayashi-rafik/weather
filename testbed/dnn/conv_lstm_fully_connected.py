@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 
 from base import Model
-from network.stacked_conv_lstm import StackedConvLSTM
+import network
 
 class ConvLSTMFullyConnected(Model):
     def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, filter_shapes=[(1,1,3,3)]):
@@ -31,7 +31,7 @@ class ConvLSTMFullyConnected(Model):
         self.n_outputs = d*w*h
 
         print('LSTMFullyConnected: building the model...'),
-        self.dnn = StackedConvLSTM(
+        self.dnn = network.StackedConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes
