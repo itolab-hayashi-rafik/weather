@@ -85,8 +85,11 @@ class Worker(QtCore.QThread):
                 pass
 
             # finetune
-            avg_cost = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr, batch_size=self.finetune_batch_size)
-            print("   train cost: {}".format(avg_cost))
+            costs = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr, batch_size=self.finetune_batch_size)
+            train_cost, valid_cost, test_cost = costs
+            print("   train cost: {}".format(train_cost))
+
+            self.vis.append_lc(train_cost, valid_cost, test_cost)
 
             self.updated.emit(y, y_pred)
 

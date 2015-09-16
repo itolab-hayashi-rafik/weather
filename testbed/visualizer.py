@@ -6,6 +6,11 @@ from generator import SinGenerator, RadarGenerator
 
 VIS_DEPTH = 0
 
+def fixed_append(list, item, maxlen):
+    list.append(item)
+    while maxlen < len(list):
+        list.pop(0)
+
 class ObservationLocation:
     def __init__(self, vis, xy, fignum, onclose):
         def handle_close(event):
@@ -37,8 +42,54 @@ class ObservationLocation:
         self.ax.autoscale_view(scalex=False,scaley=True)
         self.fig.canvas.draw()
 
+class LearningCurve:
+    def __init__(self, vis, fignum, clim):
+        self.vis = vis
+        self.clim = clim
+        self.fig = plt.figure(fignum)
+        plt.clf()
+        self.ax = plt.subplot(111)
+
+        self.data_iterations = []
+        self.data_costs = []
+
+        self.plot_lc_train = self.ax.plot(self.vis.data_x, [], 'b.-')
+        self.plot_lc_valid = self.ax.plot(self.vis.data_x, [], 'r.-')
+        self.plot_lc_test  = self.ax.plot(self.vis.data_x, [], 'g.-')
+        plt.show(block=False)
+
+        self.last_itr = -1
+
+    def append(self, train_cost, valid_cost=None, test_cost=None):
+        itr = self.last_itr + 1
+
+        fixed_append(self.data_iterations, itr, self.clim)
+        fixed_append(self.data_costs, (train_cost, valid_cost, test_cost), self.clim)
+
+        self.last_itr = itr
+        self.update()
+
+    def update(self):
+        data_train_cost = [ costs[0] for costs in self.data_costs ]
+        data_valid_cost = [ costs[1] for costs in self.data_costs ]
+        data_test_cost = [ costs[2] for costs in self.data_costs ]
+
+        ymin = min(numpy.min(data_train_cost), numpy.min(data_valid_cost), numpy.min(data_test_cost))
+        ymax = max(numpy.max(data_train_cost), numpy.max(data_valid_cost), numpy.max(data_test_cost))
+
+        self.plot_lc_train[0].set_data(self.data_iterations, data_train_cost)
+        self.plot_lc_valid[0].set_data(self.data_iterations, data_valid_cost)
+        self.plot_lc_test[0].set_data(self.data_iterations, data_test_cost)
+        self.ax.set_xlim(self.data_iterations[0], self.data_iterations[-1])
+        self.ax.set_ylim(
+            ymin if ymin is not None else 0,
+            ymax if ymax is not None else 1
+        )
+        self.ax.autoscale_view(scalex=False,scaley=True)
+        self.fig.canvas.draw()
+
 class Visualizer:
-    def __init__(self, w=10, h=10, xlim=30):
+    def __init__(self, w=10, h=10, xlim=30, clim=100):
         # data
         self.data_x = []
         self.data_y = []
@@ -61,10 +112,7 @@ class Visualizer:
         plt.show(block=False)
 
         # learning curve
-        self.fig_lc = plt.figure(3)
-        plt.clf()
-        self.ax_lc = plt.subplot(111)
-        plt.show(block=False)
+        self.lc = LearningCurve(self, 3, clim)
 
         # observations
         self.observation_locations = []
@@ -82,20 +130,15 @@ class Visualizer:
 
         x = self.last_x + 1
 
-        self.data_x.append(x)
-        while self.xlim < len(self.data_x):
-            self.data_x.pop(0)
-
-        self.data_y.append(y)
-        while self.xlim < len(self.data_y):
-            self.data_y.pop(0)
-
-        self.data_y_pred.append(y_pred)
-        while self.xlim < len(self.data_y_pred):
-            self.data_y_pred.pop(0)
+        fixed_append(self.data_x, x, self.xlim)
+        fixed_append(self.data_y, y, self.xlim)
+        fixed_append(self.data_y_pred, y_pred, self.xlim)
 
         self.last_x = x
         self.update()
+
+    def append_lc(self, train_cost, valid_cost=None, test_cost=None):
+        self.lc.append(train_cost, valid_cost, test_cost)
 
     def update(self):
         # y

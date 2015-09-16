@@ -143,6 +143,7 @@ class BaseModel(Model):
         uidx = 0  # the number of update done
         estop = False  # early stop
         costs = []
+        v_costs = []
         for eidx in xrange(epochs):
             n_samples = 0
 
@@ -184,6 +185,7 @@ class BaseModel(Model):
                     #use_noise.set_value(0.) # TODO: implement dropout?
                     valid_costs = self.validate(dataset, valid_idx, batch_size)
                     valid_cost = numpy.mean(valid_costs)
+                    v_costs.append(valid_cost)
                     history_errs.append(valid_cost)
 
                     if (uidx == 0 or
@@ -208,7 +210,7 @@ class BaseModel(Model):
             if estop:
                 break
 
-        return numpy.average(costs)
+        return numpy.average(costs), numpy.average(v_costs), None
 
     def validate(self, dataset, valid_idx, batch_size):
         n_validate_batches = len(valid_idx) / batch_size
