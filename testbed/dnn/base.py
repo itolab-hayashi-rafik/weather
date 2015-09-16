@@ -191,7 +191,7 @@ class BaseModel(Model):
                         #best_p = unzip(tparams) # FIXME: saving parameters is not implemented here
                         bad_counter = 0
 
-                    print(" (validtion) Train:{}, Valid: ".format(cost, valid_cost))
+                    print(" (validtion) Train:{}, Valid: {}".format(cost, valid_cost))
 
                     if (len(history_errs) > patience and
                                 valid_cost >= numpy.array(history_errs)[:-patience].min()):
@@ -203,7 +203,7 @@ class BaseModel(Model):
 
                 costs.append(avg_cost)
 
-            print 'Seen %d samples' % n_samples
+            print("Epoch {}/{}: Seen {} samples".format(eidx+1, epochs, n_samples))
 
             if estop:
                 break
