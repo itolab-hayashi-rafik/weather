@@ -31,12 +31,11 @@ class BaseModel(Model):
         :param w:
         :param h:
         '''
+        self.dnn = dnn
         self.n = n
         self.d = d
         self.w = w
         self.h = h
-
-        self.dnn = dnn
 
         print('Building finetune function...'),
         self.f_grad_shared, self.f_update, self.f_validate = self.dnn.build_finetune_function()
@@ -45,6 +44,24 @@ class BaseModel(Model):
         print('Building predict function...'),
         self.f_predict = self.dnn.build_prediction_function()
         print('done')
+
+    @property
+    def params(self):
+        return {
+            'dnn.params': self.dnn.params,
+            'n': self.n,
+            'd': self.d,
+            'w': self.w,
+            'h': self.h,
+        }
+
+    @params.setter
+    def params(self, param_list):
+        self.dnn.params = param_list['dnn.params']
+        self.n = param_list['n']
+        self.d = param_list['d']
+        self.w = param_list['w']
+        self.h = param_list['h']
 
     def _make_input(self, dataset, idx):
         '''
