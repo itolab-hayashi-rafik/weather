@@ -7,7 +7,7 @@ from base import Model
 import network
 
 class EncoderDecoderLSTM(Model):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[10]):
+    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[100]):
         self.n = n
         self.d = d
         self.w = w
@@ -20,8 +20,7 @@ class EncoderDecoderLSTM(Model):
         self.dnn = network.EncoderDecoderLSTM(
             numpy_rng,
             n_ins=self.n_inputs,
-            hidden_layers_sizes=hidden_layers_sizes,
-            n_outs=self.n_outputs
+            hidden_layers_sizes=hidden_layers_sizes
         )
         print('done')
 

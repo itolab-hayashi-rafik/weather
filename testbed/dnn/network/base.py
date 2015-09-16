@@ -96,7 +96,7 @@ class StandaloneNetwork(Network):
         '''
         :return: the cost of finetune
         '''
-        raise NotImplementedError
+        return (self.output - self.y).norm(L=2)
 
     def build_finetune_function(self, optimizer=O.adadelta):
         '''
@@ -106,13 +106,14 @@ class StandaloneNetwork(Network):
         '''
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
+        cost = self.finetune_cost
         params = flatten(self.params)
-        grads = T.grad(self.finetune_cost, params)
+        grads = T.grad(cost, params)
 
-        f_validate = theano.function([self.x, self.mask, self.y], self.finetune_cost)
+        f_validate = theano.function([self.x, self.mask, self.y], cost)
 
         f_grad_shared, f_update = optimizer(learning_rate, params, grads,
-                                            self.x, self.mask, self.y, self.finetune_cost)
+                                            self.x, self.mask, self.y, cost)
 
         return (f_grad_shared, f_update, f_validate)
 
