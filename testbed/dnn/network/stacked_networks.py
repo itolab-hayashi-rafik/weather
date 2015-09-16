@@ -31,8 +31,12 @@ class StackedNetwork(StandaloneNetwork):
         raise NotImplementedError
 
     @property
-    def finetune_cost(self):
-        return (self.layers[-1].output - self.y).norm(L=2)
+    def output(self):
+        return self.layers[-1].output
+
+    @property
+    def outputs(self):
+        return self.layers[-1].outputs
 
     @property
     def params(self):
@@ -133,7 +137,7 @@ class StackedLSTM(StackedNetwork):
     @property
     def finetune_cost(self):
         n_timesteps = self.x.shape[0]
-        return (self.output - self.y).norm(L=2) / n_timesteps
+        return super(StackedLSTM, self).finetune_cost / n_timesteps
 
     @property
     def output(self):
@@ -352,7 +356,7 @@ class StackedConvLSTM(StackedNetwork):
     @property
     def finetune_cost(self):
         n_timesteps = self.x.shape[0]
-        return (self.output - self.y).norm(L=2) / n_timesteps
+        return super(StackedConvLSTM, self).finetune_cost / n_timesteps
 
     @property
     def output(self):

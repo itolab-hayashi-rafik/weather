@@ -96,7 +96,7 @@ class StandaloneNetwork(Network):
         '''
         :return: the cost of finetune
         '''
-        return (self.output - self.y).norm(L=2)
+        return T.mean((self.output - self.y)**2)
 
     def build_finetune_function(self, optimizer=O.adadelta):
         '''

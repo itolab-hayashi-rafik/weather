@@ -150,7 +150,7 @@ class BaseModel(Model):
             kf = self.get_minibatches_idx(train_idx, batch_size, shuffle=True)
 
             avg_cost = 0
-            for _, train_index in kf:
+            for bidx, train_index in kf:
                 uidx += 1
                 #use_noise.set_value(1.) # TODO: implement dropout?
 
@@ -165,9 +165,7 @@ class BaseModel(Model):
                 n_samples += x.shape[1]
 
                 cost = self.f_grad_shared(x, mask, y)
-
-                if cost != 0.0:
-                    self.f_update(learning_rate)
+                self.f_update(learning_rate)
 
                 avg_cost += cost / len(kf)
 
@@ -193,7 +191,7 @@ class BaseModel(Model):
                         #best_p = unzip(tparams) # FIXME: saving parameters is not implemented here
                         bad_counter = 0
 
-                    print('Train ', cost, 'Valid ', valid_cost)
+                    print(" (validtion) Train:{}, Valid: ".format(cost, valid_cost))
 
                     if (len(history_errs) > patience and
                                 valid_cost >= numpy.array(history_errs)[:-patience].min()):
