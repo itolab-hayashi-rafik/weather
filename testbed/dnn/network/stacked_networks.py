@@ -130,6 +130,7 @@ class StackedLSTM(StackedNetwork):
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
 
+    @property
     def finetune_cost(self):
         n_timesteps = self.x.shape[0]
         return (self.output - self.y).norm(L=2) / n_timesteps

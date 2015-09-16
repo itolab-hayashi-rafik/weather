@@ -39,8 +39,12 @@ class TestBed(object):
 
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.LSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
-        # self.model = dnn.ConvLSTMFullyConnected(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+
+        # StackedLSTM を使う場合は hidden_layers_sizes が [...] + [n_ins] でないといけない.
+        # self.model = dnn.StackedLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
+
+        # StackedConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
+        # self.model = dnn.StackedConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
         # EncoderDecoderLSTM を使う場合は hidden_layers_sizes が [n_ins] + [...] + [n_ins] でないといけない.
         # self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)

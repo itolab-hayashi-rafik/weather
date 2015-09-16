@@ -2,7 +2,4 @@ __author__ = 'masayuki'
 
 from sda_fully_connected import SdAFullyConnected
 from sda_individual import SdAIndividual
-from lstm_fully_connected import LSTMFullyConnected
-from conv_lstm_fully_connected import ConvLSTMFullyConnected
-from encoder_decoder_lstm import EncoderDecoderLSTM
-from encoder_decoder_conv_lstm import EncoderDecoderConvLSTM
+from models import StackedLSTM, StackedConvLSTM, EncoderDecoderLSTM, EncoderDecoderConvLSTM
