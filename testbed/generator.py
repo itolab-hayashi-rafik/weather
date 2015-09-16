@@ -23,6 +23,27 @@ class Generator(object):
     def next(self):
         self.t += 1
 
+class ConstantGenerator(Generator):
+    def __init__(self, w=10, h=10, d=1, value=0):
+        self.value = value
+        super(ConstantGenerator, self).__init__(w, h, d)
+
+    def next(self):
+        super(ConstantGenerator, self).next()
+
+        data = \
+            [
+                [
+                    [
+                        self.value
+                        for i in xrange(self.w)
+                    ] for j in xrange(self.h)
+                ] for k in xrange(self.d)
+            ]
+
+        return numpy.asarray(data, dtype=theano.config.floatX)
+
+
 class SinGenerator(Generator):
     def __init__(self, w=10, h=10, d=1):
         super(SinGenerator, self).__init__(w=w, h=h, d=d)

@@ -11,7 +11,7 @@ import theano
 from theano import tensor as T
 
 import dnn
-from generator import SinGenerator, RadarGenerator
+from generator import ConstantGenerator, SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
@@ -101,6 +101,7 @@ class TestBed(object):
 
 if __name__ == '__main__':
     bed = TestBed()
+    # gen = ConstantGenerator(w=bed.w, h=bed.h, d=bed.d)
     gen = SinGenerator(w=bed.w, h=bed.h, d=bed.d)
     # gen = RadarGenerator("../data/radar", w=bed.w, h=bed.h)
 
