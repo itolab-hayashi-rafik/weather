@@ -1,7 +1,14 @@
+# -*- coding: utf-8 -*-
+import numpy
+import theano
+import theano.tensor as T
 from theano.configparser import config
 from theano.tensor.basic import _multi
 from theano.tensor.type import TensorType
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.gof.utils import flatten
+
+import optimizers as O
 
 ctensor5 = TensorType('complex64', ((False,) * 5))
 ztensor5 = TensorType('complex128', ((False,) * 5))
@@ -67,3 +74,50 @@ class Network(object):
         :param param_list: list of parameters
         '''
         pass
+
+
+class StandaloneNetwork(Network):
+    def __init__(self,
+                 numpy_rng,
+                 theano_rng=None,
+                 input=None,
+                 mask=None,
+                 output=None
+    ):
+        self.x = input
+        self.mask = mask
+        self.y = output
+        self.layers = []
+
+        super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng)
+
+    @property
+    def finetune_cost(self):
+        '''
+        :return: the cost of finetune
+        '''
+        raise NotImplementedError
+
+    def build_finetune_function(self, optimizer=O.adadelta):
+        '''
+        build the finetune function
+        :param optimizer: an optimizer to use
+        :return:
+        '''
+        learning_rate = T.scalar('lr', dtype=theano.config.floatX)
+
+        params = flatten(self.params)
+        grads = T.grad(self.finetune_cost, params)
+
+        f_validate = theano.function([self.x, self.mask, self.y], self.finetune_cost)
+
+        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
+                                            self.x, self.mask, self.y, self.finetune_cost)
+
+        return (f_grad_shared, f_update, f_validate)
+
+    def build_prediction_function(self):
+        return theano.function(
+            [self.x, self.mask],
+            outputs=self.output
+        )

@@ -5,12 +5,10 @@ import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 from theano.gof.utils import flatten
 
-from base import Network, tensor5
+from base import StandaloneNetwork, tensor5
 from layer import LSTM, ConvLSTM
 
-import optimizers as O
-
-class StackedNetwork(Network):
+class StackedNetwork(StandaloneNetwork):
     '''
     Base implementation of Stacked Network
     '''
@@ -21,15 +19,9 @@ class StackedNetwork(Network):
                  mask=None,
                  output=None
     ):
-        self.x = input
-        self.mask = mask
-        self.y = output
         self.layers = []
 
-        assert input is not None
-        assert output is not None
-
-        super(StackedNetwork, self).__init__(numpy_rng, theano_rng)
+        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output)
 
     def setup(self):
         '''
@@ -39,6 +31,10 @@ class StackedNetwork(Network):
         raise NotImplementedError
 
     @property
+    def finetune_cost(self):
+        return (self.layers[-1].output - self.y).norm(L=2)
+
+    @property
     def params(self):
         return [[layer.params] for layer in self.layers]
 
@@ -46,25 +42,6 @@ class StackedNetwork(Network):
     def params(self, param_list):
         for layer, params in zip(self.layers, param_list):
             layer.params = params
-
-    def build_finetune_function(self, cost, optimizer=O.adadelta):
-        learning_rate = T.scalar('lr', dtype=theano.config.floatX)
-
-        params = flatten(self.params)
-        grads = T.grad(cost, params)
-
-        f_validate = theano.function([self.x, self.mask, self.y], cost)
-
-        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
-                                            self.x, self.mask, self.y, cost)
-
-        return (f_grad_shared, f_update, f_validate)
-
-    def build_prediction_function(self):
-        return theano.function(
-            [self.x, self.mask],
-            outputs=self.output
-        )
 
 
 class StackedLSTM(StackedNetwork):
@@ -153,7 +130,9 @@ class StackedLSTM(StackedNetwork):
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
 
-        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
+    def finetune_cost(self):
+        n_timesteps = self.x.shape[0]
+        return (self.output - self.y).norm(L=2) / n_timesteps
 
     @property
     def output(self):
@@ -259,8 +238,6 @@ class StackedLSTMDecoder(StackedLSTM):
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
 
-        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
-
 
 class StackedConvLSTM(StackedNetwork):
     '''
@@ -294,7 +271,7 @@ class StackedConvLSTM(StackedNetwork):
         '''
         self.input_shape = input_shape
         self.filter_shapes = filter_shapes
-        self.output_shape = (input_shape[0], filter_shapes[-1][0], input_shape[1], input_shape[2])
+        self.output_shape = (filter_shapes[-1][0], input_shape[1], input_shape[2])
         self.n_outs = numpy.prod(input_shape[1:])
         self.conv_lstm_layers = []
         self.n_layers = len(filter_shapes)
@@ -319,12 +296,12 @@ class StackedConvLSTM(StackedNetwork):
         for i, n_hidden in enumerate(self.filter_shapes):
             # determine input size
             if i == 0:
-                s_in = self.input_shape
+                input_shape = self.input_shape
             else:
-                s_in = self.layers[-1].output_shape
+                input_shape = self.layers[-1].output_shape
 
             # build an LSTM layer
-            layer = ConvLSTM(input_shape=s_in,
+            layer = ConvLSTM(input_shape=input_shape,
                              filter_shape=self.filter_shapes[i],
                              activation=T.tanh,
                              prefix="ConvLSTM{}".format(i),
@@ -371,7 +348,10 @@ class StackedConvLSTM(StackedNetwork):
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
 
-        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
+    @property
+    def finetune_cost(self):
+        n_timesteps = self.x.shape[0]
+        return (self.output - self.y).norm(L=2) / n_timesteps
 
     @property
     def output(self):
@@ -416,7 +396,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
                  n_timesteps=None,
     ):
         assert encoder is not None
-        input_shape = encoder.input_shape
+        input_shape = encoder.output_shape
         filter_shapes = [s for s in reversed(encoder.filter_shapes)]
         initial_hidden_states = [s for s in reversed(encoder.last_states)]
 
@@ -460,5 +440,3 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
-
-        self.finetune_cost = (self.output - self.y).norm(L=2) / n_timesteps
