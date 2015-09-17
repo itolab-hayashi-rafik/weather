@@ -196,12 +196,13 @@ class StackedConvLSTM(BaseModel):
         :return:
         '''
 
+        assert t_out == 1
+
         print('LSTMFullyConnected: building the model...'),
         dnn = network.StackedConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
-            t_out=t_out
         )
         print('done')
 
@@ -285,12 +286,13 @@ class StackedLSTM(BaseModel):
         self.n_ins = d*h*w
         self.n_outs= d*h*w
 
+        assert t_out == 1
+
         print('Building the model...'),
         dnn = network.StackedLSTM(
             numpy_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
-            t_out=t_out
         )
         print('done')
 
