@@ -114,7 +114,7 @@ class EncoderDecoderLSTM(BaseModel):
             numpy_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
-            t_out=t_out
+            n_timesteps=t_out
         )
         print('done')
 
