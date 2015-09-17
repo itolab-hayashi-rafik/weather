@@ -82,11 +82,13 @@ class StandaloneNetwork(Network):
                  theano_rng=None,
                  input=None,
                  mask=None,
-                 output=None
+                 output=None,
+                 is_rnn=False
     ):
         self.x = input
         self.mask = mask
         self.y = output
+        self.is_rnn = is_rnn
         self.layers = []
 
         super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng)
@@ -118,7 +120,7 @@ class StandaloneNetwork(Network):
         return (f_grad_shared, f_update, f_validate)
 
     def build_prediction_function(self):
-        return theano.function(
-            [self.x, self.mask],
-            outputs=self.output
-        )
+        if self.is_rnn:
+            return theano.function([self.x, self.mask], outputs=self.outputs)
+        else:
+            return theano.function([self.x, self.mask], outputs=self.output)

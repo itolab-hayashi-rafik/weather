@@ -34,11 +34,11 @@ class Worker(QtCore.QThread):
         self.stop_flg = False
         self.mutex = QtCore.QMutex()
 
-    def setup(self, window_size=20, n=2, w=10, h=10, d=1, hidden_layers_sizes=[100], pretrain_step=20):
-        self.bed = TestBed(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
+    def setup(self, window_size=20, t_in=2, w=10, h=10, d=1, t_out=1, hidden_layers_sizes=[100], pretrain_step=1):
+        self.bed = TestBed(window_size=window_size, t_in=t_in, w=w, h=h, d=d, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
         self.gen = SinGenerator(w=w, h=h, d=1)
         # self.gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
-        self.vis = Visualizer(w=w, h=h)
+        self.vis = Visualizer(w=w, h=h, t_out=t_out)
         self.pretrain_step = pretrain_step
 
         # fill the window with data
@@ -72,11 +72,11 @@ class Worker(QtCore.QThread):
 
         for i,y in enumerate(self.gen):
             # predict
-            y_pred = self.bed.predict()
+            y_preds = self.bed.predict()
             #print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
             self.bed.supply(y)
-            self.vis.append(y, y_pred)
+            self.vis.append(y, y_preds)
 
             if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
@@ -91,7 +91,7 @@ class Worker(QtCore.QThread):
 
             self.vis.append_lc(train_cost, valid_cost, test_cost)
 
-            self.updated.emit(y, y_pred)
+            self.updated.emit(y, y_preds)
 
             time.sleep(self.delay)
 
@@ -114,8 +114,10 @@ class Window(QtGui.QDialog):
         self.h_line_edit.textChanged.connect(self.dnnChanged)
         self.d_line_edit = QtGui.QLineEdit('1')
         self.d_line_edit.textChanged.connect(self.dnnChanged)
-        self.n_line_edit = QtGui.QLineEdit('2')
-        self.n_line_edit.textChanged.connect(self.dnnChanged)
+        self.t_in_line_edit = QtGui.QLineEdit('2')
+        self.t_in_line_edit.textChanged.connect(self.dnnChanged)
+        self.t_out_line_edit = QtGui.QLineEdit('1')
+        self.t_out_line_edit.textChanged.connect(self.dnnChanged)
         self.hidden_layer_sizes_line_edit = QtGui.QLineEdit('3')
         self.hidden_layer_sizes_line_edit.textChanged.connect(self.dnnChanged)
 
@@ -124,7 +126,8 @@ class Window(QtGui.QDialog):
         self.input_form.addRow('width:', self.w_line_edit)
         self.input_form.addRow('height:', self.h_line_edit)
         self.input_form.addRow('depth:', self.d_line_edit)
-        self.input_form.addRow('n:', self.n_line_edit)
+        self.input_form.addRow('t_in:', self.t_in_line_edit)
+        self.input_form.addRow('t_out:', self.t_out_line_edit)
         self.input_form.addRow('Hidden Layer Sizes:', self.hidden_layer_sizes_line_edit)
 
         self.pretrain_epochs_line_edit = QtGui.QLineEdit('0')
@@ -198,18 +201,19 @@ class Window(QtGui.QDialog):
         w = int(self.w_line_edit.text())
         h = int(self.h_line_edit.text())
         d = int(self.d_line_edit.text())
-        n = int(self.n_line_edit.text())
+        t_in = int(self.t_in_line_edit.text())
+        t_out = int(self.t_out_line_edit.text())
         hidden_layers_sizes = self.hidden_layer_sizes_line_edit.text().split(',')
         hidden_layers_sizes = [int(i) for i in hidden_layers_sizes]
 
         # self.vis = Visualizer(w=w, h=h)
 
         if self.need_setup:
-            self.worker.setup(window_size=window_size, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes, pretrain_step=1)
+            self.worker.setup(window_size=window_size, t_in=t_in, w=w, h=h, d=d, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
             self.need_setup = False
         self.updateWorker()
-        # self.worker.run() # use this for debugging
-        self.worker.start()
+        self.worker.run() # use this for debugging
+        # self.worker.start()
 
     def stop(self):
         self.start_stop_button.setText('Start')

@@ -21,21 +21,23 @@ class Model(object):
 
 
 class BaseModel(Model):
-    def __init__(self, numpy_rng, dnn, n=2, d=1, w=10, h=10):
+    def __init__(self, numpy_rng, dnn, t_in=2, d=1, w=10, h=10, t_out=1):
         '''
         Initialize ConvLSTM Encoder-Decoder model
         :param numpy_rng:
         :param dnn: network use
-        :param n:
-        :param d:
-        :param w:
-        :param h:
+        :param t_in: num of input timesteps
+        :param d: input depth (num of input feature maps)
+        :param w: input width
+        :param h: input height
+        :param t_out: num of output timesteps
         '''
         self.dnn = dnn
-        self.n = n
+        self.t_in = t_in
         self.d = d
         self.w = w
         self.h = h
+        self.t_out = t_out
 
         print('Building finetune function...'),
         self.f_grad_shared, self.f_update, self.f_validate = self.dnn.build_finetune_function()
@@ -49,19 +51,21 @@ class BaseModel(Model):
     def params(self):
         return {
             'dnn.params': self.dnn.params,
-            'n': self.n,
+            't_in': self.t_in,
             'd': self.d,
             'w': self.w,
             'h': self.h,
+            't_out': self.t_out,
         }
 
     @params.setter
     def params(self, param_list):
         self.dnn.params = param_list['dnn.params']
-        self.n = param_list['n']
+        self.t_in = param_list['t_in']
         self.d = param_list['d']
         self.w = param_list['w']
         self.h = param_list['h']
+        self.t_out = param_list['t_out']
 
     def _make_input(self, dataset, idx):
         '''
@@ -69,7 +73,7 @@ class BaseModel(Model):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :, : ,:]
+        return dataset[[range(n,n+self.t_in) for n in idx], :, : ,:]
 
     def _make_output(self, dataset, idx):
         '''
@@ -77,7 +81,7 @@ class BaseModel(Model):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :, :, :]
+        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :, :, :]
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -114,7 +118,13 @@ class BaseModel(Model):
         for idx, s in enumerate(xs):
             x[:lengths[idx], idx, :, :, :] = s
             x_mask[:lengths[idx], idx, :] = 1.
-        y = numpy.asarray(ys, dtype=theano.config.floatX) if ys is not None else ys
+
+        if ys is not None:
+            y = numpy.zeros((self.t_out, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
+            for idx, yi in enumerate(ys):
+                y[:, idx, :, :, :] = yi
+        else:
+            y = None
 
         return x, x_mask, y
 
@@ -253,8 +263,8 @@ class BaseModel(Model):
         return self.finetune(dataset, train_idx, valid_idx, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size)
 
     def predict(self, dataset):
-        x = self._make_input(dataset, [len(dataset)-self.n])
+        x = self._make_input(dataset, [len(dataset)-self.t_in-self.t_out+1])
         x, mask, _ = self.prepare_data(x, None) # FIXME: None should be an numpy array to avoid manipulation against None object
         y = self.f_predict(x, mask)
-        y = y.reshape((self.d, self.h, self.w))
+        y = y.reshape((self.t_out, self.d, self.h, self.w))
         return y

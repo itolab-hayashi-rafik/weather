@@ -15,7 +15,8 @@ class EncoderDecoderNetwork(StandaloneNetwork):
                  theano_rng=None,
                  input=None,
                  mask=None,
-                 output=None
+                 output=None,
+                 is_rnn=False
                  ):
         self.encoder = None
         self.decoder = None
@@ -23,7 +24,7 @@ class EncoderDecoderNetwork(StandaloneNetwork):
         assert input is not None
         assert output is not None
 
-        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn)
 
     def setup(self):
         '''
@@ -62,6 +63,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
                  output=None,
                  n_ins=784,
                  hidden_layers_sizes=[500, 500],
+                 n_timesteps=1
     ):
         '''
 
@@ -72,23 +74,25 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
         :param output: output matrix of shape (n_samples, n_ins)
         :param n_ins:
         :param hidden_layers_sizes:
+        :param n_timesteps: num of output timesteps
         :return:
         '''
         self.n_ins = n_ins
         self.hidden_layers_sizes = hidden_layers_sizes
+        self.n_timesteps = n_timesteps
 
         # Allocate symbolic variables for the data
         if input is None:
-            # the input minibatch data is of shape (n_samples, n_ins)
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_ins)
             input = T.tensor3('x', dtype=theano.config.floatX)
         if mask is None:
             # the input minibatch mask is of shape (n_samples, n_ins)
             mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
         if output is None:
-            # the output minibatch data is of shape (n_samples, n_ins)
-            output = T.matrix('y', dtype=theano.config.floatX)
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            output = T.tensor3('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
     def setup(self):
         # Encoder network
@@ -110,7 +114,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
             mask=self.mask, # FIXME: is this ok?
             output=self.y,
             encoder=self.encoder,
-            n_timesteps=1 # FIXME
+            n_timesteps=self.n_timesteps
         )
 
 
@@ -122,7 +126,8 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
                  mask=None,
                  output=None,
                  input_shape=(1,28,28),
-                 filter_shapes=[(1,1,3,3)]
+                 filter_shapes=[(1,1,3,3)],
+                 n_timesteps=1
     ):
         '''
 
@@ -133,23 +138,25 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
         :param output: output 4D tensor of shape (n_samples, n_feature_maps, height, width)
         :param input_shape: (num input feature maps, input height, input width)
         :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
+        :param num of output timesteps
         :return:
         '''
         self.input_shape = input_shape
         self.filter_shapes = filter_shapes
+        self.n_timesteps = n_timesteps
 
         # Allocate symbolic variables for the data
         if input is None:
-            # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
             input = tensor5('x', dtype=theano.config.floatX)
         if mask is None:
-            # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
+            # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
             mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
         if output is None:
-            # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
-            output = T.tensor4('y', dtype=theano.config.floatX)
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            output = tensor5('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
     def setup(self):
         # Encoder network
@@ -171,6 +178,6 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             mask=self.mask, # FIXME: is this ok?
             output=self.y,
             encoder=self.encoder,
-            n_timesteps=2 # FIXME
+            n_timesteps=self.n_timesteps
         )
 

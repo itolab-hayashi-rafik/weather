@@ -15,22 +15,24 @@ from generator import ConstantGenerator, SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=100, n=2, w=10, h=10, d=1, hidden_layers_sizes=[3]):
+    def __init__(self, window_size=10, t_in=5, w=10, h=10, d=1, t_out=5, hidden_layers_sizes=[3]):
         '''
         初期化する
         :param window_size:
-        :param n: DNN に入力する過去のデータの個数
+        :param t_in: DNN に入力する過去のデータの個数
         :param w: 各データの横幅
         :param h: 各データの高さ
         :param d: 各データのチャンネル数
+        :param t_out: DNN から出力する未来のデータの個数
         :param hidden_layers_sizes: 中間層のユニット数
         :return:
         '''
         self.window_size = window_size
-        self.n = n
+        self.t_in = t_in
         self.w = w
         self.h = h
         self.d = d
+        self.t_out = t_out
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
         numpy_rng = numpy.random.RandomState(89677)
@@ -50,7 +52,7 @@ class TestBed(object):
         # self.model = dnn.EncoderDecoderLSTM(numpy_rng, n=n, d=d, w=w, h=h, hidden_layers_sizes=hidden_layers_sizes)
 
         # EncoderDecoderConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
-        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, n=n, d=d, w=w, h=h, filter_shapes=filter_shapes)
+        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
 
     def supply(self, data):
         self.dataset.append(data)
@@ -74,9 +76,9 @@ class TestBed(object):
         現在持っているデータセットで学習する
         :return:
         '''
-        idx = range(self.window_size-self.n)
+        idx = range(self.window_size-self.t_in-self.t_out+1)
         numpy.random.shuffle(idx)
-        cut = int(0.8*len(idx))
+        cut = int(math.ceil(0.8*len(idx)))
         train_idx = idx[:cut]
         valid_idx = idx[cut:]
         return self.model.finetune(
@@ -90,13 +92,15 @@ class TestBed(object):
 
     def predict(self):
         '''
-        入力 x から y の値を予測する
-        :param x: d-by-w-by-h 次元の ndarray のデータが n 個入った配列
+        現在のデータセットから将来のデータを予測する
         :return:
         '''
         return self.model.predict(
             numpy.asarray(self.dataset, dtype=theano.config.floatX)
         )
+
+    def save_params(self):
+        params = self.model.params
 
 
 if __name__ == '__main__':
@@ -124,7 +128,7 @@ if __name__ == '__main__':
         #     pass
 
         # finetune
-        avg_cost = bed.finetune(batch_size=7)
+        avg_cost = bed.finetune()
         print(" finetune {}, train cost: {}".format(i,avg_cost))
 
         time.sleep(1)

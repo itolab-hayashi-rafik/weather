@@ -17,11 +17,12 @@ class StackedNetwork(StandaloneNetwork):
                  theano_rng=None,
                  input=None,
                  mask=None,
-                 output=None
+                 output=None,
+                 is_rnn=False
     ):
         self.layers = []
 
-        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn)
 
     def setup(self):
         '''
@@ -76,7 +77,7 @@ class StackedLSTM(StackedNetwork):
             # the output minibatch data is of shape (n_samples, n_ins)
             output = T.matrix('y', dtype=theano.config.floatX)
 
-        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -196,7 +197,7 @@ class StackedLSTMDecoder(StackedLSTM):
                  mask=None,
                  output=None,
                  encoder=None,
-                 n_timesteps=None
+                 n_timesteps=1
     ):
         assert encoder is not None
         assert n_timesteps is not None
@@ -294,7 +295,7 @@ class StackedConvLSTM(StackedNetwork):
             # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
             output = T.tensor4('y', dtype=theano.config.floatX)
 
-        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output)
+        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -398,7 +399,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
                  mask=None,
                  output=None,
                  encoder=None,
-                 n_timesteps=None,
+                 n_timesteps=1
     ):
         assert encoder is not None
         input_shape = encoder.output_shape
@@ -406,10 +407,8 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         initial_hidden_states = [s for s in reversed(encoder.last_states)]
 
         self.encoder = encoder
-        self.n_timesteps = n_timesteps
         self.initial_hidden_states = initial_hidden_states
-
-        assert n_timesteps is not None
+        self.n_timesteps = n_timesteps
 
         super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, input, mask, output, input_shape, filter_shapes)
 
