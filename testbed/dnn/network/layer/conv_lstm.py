@@ -84,7 +84,12 @@ class ConvLSTM(RNN):
             h_bound_r = -h_bound_l if self.filter_shape[2] % 2 == 1 else -h_bound_l+1
             w_bound_l = int(self.filter_shape[3] / 2)
             w_bound_r = -w_bound_l if self.filter_shape[3] % 2 == 1 else -w_bound_l+1
-            x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
+            if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
+                x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
+            elif h_bound_l != h_bound_r:
+                x = x[:, :, h_bound_l:h_bound_r, :]
+            elif w_bound_l != w_bound_r:
+                x = x[:, :, :, w_bound_l:w_bound_r]
         elif self.border_mode == 'valid':
             pass
             # FIXME: fill the lacking value on the border by padding zero or copying the nearest value

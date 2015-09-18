@@ -6,7 +6,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from theano.gof.utils import flatten
 
 from base import StandaloneNetwork, tensor5
-from layer import LSTM, ConvLSTM
+from layer import Conv, LSTM, ConvLSTM
 
 class StackedNetwork(StandaloneNetwork):
     '''
@@ -68,14 +68,14 @@ class StackedLSTM(StackedNetwork):
 
         # Allocate symbolic variables for the data
         if input is None:
-            # the input minibatch data is of shape (n_samples, n_ins)
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_ins)
             input = T.tensor3('x', dtype=theano.config.floatX)
         if mask is None:
             # the input minibatch mask is of shape (n_samples, n_ins)
             mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
         if output is None:
-            # the output minibatch data is of shape (n_samples, n_ins)
-            output = T.matrix('y', dtype=theano.config.floatX)
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            output = T.tensor3('y', dtype=theano.config.floatX)
 
         super(StackedLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
@@ -203,8 +203,8 @@ class StackedLSTMDecoder(StackedLSTM):
         assert n_timesteps is not None
 
         n_ins = encoder.n_ins
-        hidden_layers_sizes = [s for s in reversed(encoder.hidden_layers_sizes)]
-        initial_hidden_states = [s for s in reversed(encoder.last_states)]
+        hidden_layers_sizes = encoder.hidden_layers_sizes
+        initial_hidden_states = encoder.last_states
 
         self.initial_hidden_states = initial_hidden_states
         self.n_timesteps = n_timesteps
@@ -292,8 +292,8 @@ class StackedConvLSTM(StackedNetwork):
             # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
             mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
         if output is None:
-            # the output minibatch data is of shape (n_samples, n_feature_maps, height, width)
-            output = T.tensor4('y', dtype=theano.config.floatX)
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            output = tensor5('y', dtype=theano.config.floatX)
 
         super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
 
@@ -402,15 +402,30 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
                  n_timesteps=1
     ):
         assert encoder is not None
-        input_shape = encoder.output_shape
-        filter_shapes = [s for s in reversed(encoder.filter_shapes)]
-        initial_hidden_states = [s for s in reversed(encoder.last_states)]
+        input_shape = encoder.input_shape
+        filter_shapes = encoder.filter_shapes
+        initial_hidden_states = encoder.last_states
 
         self.encoder = encoder
         self.initial_hidden_states = initial_hidden_states
         self.n_timesteps = n_timesteps
 
+        # determine decoder filter shape
+        n_output_feature_maps = encoder.input_shape[0] # num of output feature maps = num of encoder's input feature maps
+        n_hiddens = sum([s[0] for s in encoder.filter_shapes]) # the number of total output feature maps (num of hidden states)
+        self.decoder_input_shape = (n_hiddens, encoder.input_shape[1], encoder.input_shape[2])
+        self.decoder_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
+
         super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, input, mask, output, input_shape, filter_shapes)
+
+    def setup(self):
+        self.decoder_layer = Conv(
+            None,
+            self.decoder_input_shape,
+            self.decoder_filter_shape,
+            prefix="Conv_DecoderLayer"
+        )
+        super(StackedConvLSTMDecoder, self).setup()
 
     def setup_scan(self):
         n_timesteps = self.n_timesteps
@@ -422,12 +437,20 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # feed forward calculation
         def step(y, *prev_states):
             y_ = y
+
+            # forward propagation
             new_states = []
             for i, layer in enumerate(self.layers):
                 c_, h_ = prev_states[2*i], prev_states[2*i+1]
                 layer_out = layer.step(1., y_, c_, h_)
                 _, y_ = layer_out # c, h
                 new_states += layer_out
+
+            # concatenate outputs of each ConvLSTM
+            y_ = T.concatenate(new_states[1::2], axis=0) # concatenate h_ outputs of all layers
+            self.decoder_layer.input = y_ # a bit hacky way... should be fixed
+            y_ = self.decoder_layer.output
+
             return [y_] + new_states
 
         rval, updates = theano.scan(
