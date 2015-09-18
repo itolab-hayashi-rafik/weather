@@ -8,14 +8,15 @@ from base import BaseModel
 import network
 
 class EncoderDecoderConvLSTM(BaseModel):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, filter_shapes=[(1,1,3,3)]):
+    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
         '''
 
         :param numpy_rng:
-        :param n:
+        :param t_in:
         :param d:
         :param w:
         :param h:
+        :param t_out: num of output timesteps
         :param filter_shapes:
         :return:
         '''
@@ -24,11 +25,12 @@ class EncoderDecoderConvLSTM(BaseModel):
         dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
-            filter_shapes=filter_shapes
+            filter_shapes=filter_shapes,
+            n_timesteps=t_out
         )
         print('done')
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, n, d, w, h)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
     def _make_input(self, dataset, idx):
         '''
@@ -36,7 +38,7 @@ class EncoderDecoderConvLSTM(BaseModel):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.d, self.h, self.w))
+        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.d, self.h, self.w))
 
     def _make_output(self, dataset, idx):
         '''
@@ -44,7 +46,7 @@ class EncoderDecoderConvLSTM(BaseModel):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.d, self.h, self.w))
+        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.d, self.h, self.w))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -78,22 +80,30 @@ class EncoderDecoderConvLSTM(BaseModel):
 
         x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples, self.d), dtype=theano.config.floatX)
-        for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :, :, :] = s
+        for idx, xi in enumerate(xs):
+            x[:lengths[idx], idx, :, :, :] = xi
             x_mask[:lengths[idx], idx, :] = 1.
 
-        return x, x_mask, ys
+        if ys is not None:
+            y = numpy.zeros((self.t_out, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
+            for idx, yi in enumerate(ys):
+                y[:, idx, :, :, :] = yi
+        else:
+            y = None
+
+        return x, x_mask, y
 
 
 class EncoderDecoderLSTM(BaseModel):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[100]):
+    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
         '''
 
         :param numpy_rng:
-        :param n:
+        :param t_in:
         :param d:
         :param w:
         :param h:
+        :param t_out: num of output timesteps
         :param hidden_layers_sizes:
         :return:
         '''
@@ -103,11 +113,12 @@ class EncoderDecoderLSTM(BaseModel):
         dnn = network.EncoderDecoderLSTM(
             numpy_rng,
             n_ins=self.n_ins,
-            hidden_layers_sizes=hidden_layers_sizes
+            hidden_layers_sizes=hidden_layers_sizes,
+            n_timesteps=t_out
         )
         print('done')
 
-        super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, n, d, w, h)
+        super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
     def _make_input(self, dataset, idx):
         '''
@@ -115,7 +126,7 @@ class EncoderDecoderLSTM(BaseModel):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.n_ins))
+        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
 
     def _make_output(self, dataset, idx):
         '''
@@ -123,7 +134,7 @@ class EncoderDecoderLSTM(BaseModel):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.n_ins))
+        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -161,31 +172,41 @@ class EncoderDecoderLSTM(BaseModel):
             x[:lengths[idx], idx, :] = s
             x_mask[:lengths[idx], idx] = 1.
 
-        return x, x_mask, ys
+        if ys is not None:
+            y = numpy.zeros((self.t_out, n_samples, self.n_ins), dtype=theano.config.floatX)
+            for idx, yi in enumerate(ys):
+                y[:, idx, :] = yi
+        else:
+            y = None
+
+        return x, x_mask, y
 
 
 class StackedConvLSTM(BaseModel):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, filter_shapes=[(1,1,3,3)]):
+    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
         '''
 
         :param numpy_rng:
-        :param n:
+        :param t_in:
         :param d:
         :param w:
         :param h:
+        :param t_out: num of output timesteps
         :param filter_shapes:
         :return:
         '''
+
+        assert t_out == 1
 
         print('LSTMFullyConnected: building the model...'),
         dnn = network.StackedConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
-            filter_shapes=filter_shapes
+            filter_shapes=filter_shapes,
         )
         print('done')
 
-        super(StackedConvLSTM, self).__init__(numpy_rng, dnn, n, d, w, h)
+        super(StackedConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
     def _make_input(self, dataset, idx):
         '''
@@ -193,7 +214,7 @@ class StackedConvLSTM(BaseModel):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.d, self.h, self.w))
+        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.d, self.h, self.w))
 
     def _make_output(self, dataset, idx):
         '''
@@ -201,7 +222,7 @@ class StackedConvLSTM(BaseModel):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.d, self.h, self.w))
+        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.d, self.h, self.w))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -239,23 +260,33 @@ class StackedConvLSTM(BaseModel):
             x[:lengths[idx], idx, :, :, :] = s
             x_mask[:lengths[idx], idx, :] = 1.
 
-        return x, x_mask, ys
+        if ys is not None:
+            y = numpy.zeros((self.t_out, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
+            for idx, yi in enumerate(ys):
+                y[:, idx, :, :, :] = yi
+        else:
+            y = None
+
+        return x, x_mask, y
 
 
 class StackedLSTM(BaseModel):
-    def __init__(self, numpy_rng, n=2, d=1, w=10, h=10, hidden_layers_sizes=[100]):
+    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
         '''
 
         :param numpy_rng:
-        :param n:
+        :param t_in:
         :param d:
         :param w:
         :param h:
+        :param t_out: num of output timesteps
         :param hidden_layers_sizes:
         :return:
         '''
         self.n_ins = d*h*w
         self.n_outs= d*h*w
+
+        assert t_out == 1
 
         print('Building the model...'),
         dnn = network.StackedLSTM(
@@ -265,7 +296,7 @@ class StackedLSTM(BaseModel):
         )
         print('done')
 
-        super(StackedLSTM, self).__init__(numpy_rng, dnn, n, d, w, h)
+        super(StackedLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
     def _make_input(self, dataset, idx):
         '''
@@ -273,7 +304,7 @@ class StackedLSTM(BaseModel):
         :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
         :return:
         '''
-        return dataset[[range(n,n+self.n) for n in idx], :].reshape((len(idx), self.n, self.n_ins))
+        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
 
     def _make_output(self, dataset, idx):
         '''
@@ -281,7 +312,7 @@ class StackedLSTM(BaseModel):
         :param data:
         :return:
         '''
-        return dataset[[n+self.n for n in idx], :].reshape((len(idx), self.n_outs))
+        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.n_outs))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -319,4 +350,11 @@ class StackedLSTM(BaseModel):
             x[:lengths[idx], idx, :] = s
             x_mask[:lengths[idx], idx] = 1.
 
-        return x, x_mask, ys
+        if ys is not None:
+            y = numpy.zeros((self.t_out, n_samples, self.n_ins), dtype=theano.config.floatX)
+            for idx, yi in enumerate(ys):
+                y[:, idx, :] = yi
+        else:
+            y = None
+
+        return x, x_mask, y

@@ -24,6 +24,7 @@ class SdA(Network):
         self,
         numpy_rng,
         theano_rng=None,
+        name="SdA",
         n_ins=784,
         hidden_layers_sizes=[500, 500],
         n_outs=10,
@@ -53,7 +54,7 @@ class SdA(Network):
         :param corruption_levels: amount of corruption to use for each
                                   layer
         """
-        super(SdA, self).__init__(numpy_rng, theano_rng)
+        super(SdA, self).__init__(numpy_rng, theano_rng, name)
 
         self.sigmoid_layers = []
         self.dA_layers = []

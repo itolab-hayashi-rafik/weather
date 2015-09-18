@@ -190,7 +190,7 @@ class SdAIndividual(Model):
                     c.append(minibatch_avg_cost)
 
                 avg_cost = numpy.mean(c)
-                # print('  pretrain({}): cost={}'.format(epoch, cost))
+                # print('  pretrain({0}): cost={1}'.format(epoch, cost))
 
                 epoch = epoch + 1
 
@@ -265,7 +265,7 @@ class SdAIndividual(Model):
                     done_looping = True
                     break
 
-            # print('  finetune({}): cost={}'.format(epoch, cost))
+            # print('  finetune({0}): cost={1}'.format(epoch, cost))
 
             avg_cost = numpy.mean(c)
             epoch = epoch + 1
