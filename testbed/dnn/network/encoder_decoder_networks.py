@@ -73,7 +73,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
         :param theano_rng:
         :param input: input tensor of shape (n_timesteps, n_samples, n_ins)
         :param mask: input mask of shape (n_timesteps, n_samples)
-        :param output: output matrix of shape (n_samples, n_ins)
+        :param output: output tensor of shape (n_timesteps, n_samples, n_ins)
         :param n_ins:
         :param hidden_layers_sizes:
         :param n_timesteps: num of output timesteps
@@ -138,7 +138,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
         :param theano_rng:
         :param input: input 5D tensor of shape (n_timesteps, n_samples, n_feature_maps, height, width)
         :param mask: input mask of shape (n_timesteps, n_samples, n_feature_maps)
-        :param output: output 4D tensor of shape (n_samples, n_feature_maps, height, width)
+        :param output: output 5D tensor of shape (n_timestamps, n_samples, n_feature_maps, height, width)
         :param input_shape: (num input feature maps, input height, input width)
         :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
         :param num of output timesteps
