@@ -247,7 +247,7 @@ if __name__ == '__main__':
 
     time.sleep(10)
     for i,y in enumerate(gen):
-        print("{}: max={}".format(i,numpy.max(y)))
+        print("{0}: max={1}".format(i,numpy.max(y)))
         vis.append_data(y, numpy.asarray([y]))
         vis.append_cost(1.0/float(i+1), 2.0/float(i+1), None)
 

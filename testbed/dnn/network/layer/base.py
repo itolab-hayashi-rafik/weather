@@ -49,7 +49,7 @@ class Layer(object):
         self.setup()
 
     def _p(self, name):
-        return '{}_{}'.format(self.prefix, name)
+        return '{0}_{1}'.format(self.prefix, name)
 
     def _shared(self, value, name=None, strict=False, allow_downcast=False, **kwargs):
         name = self._p(name) if name is not None else name

@@ -118,18 +118,18 @@ if __name__ == '__main__':
     for i,y in enumerate(gen):
         # predict
         y_pred = bed.predict()
-        print("{}: y={}, y_pred={}".format(i, y, y_pred))
+        print("{0}: y={1}, y_pred={2}".format(i, y, y_pred))
 
         bed.supply(y)
 
         # if i % pretrain_step == 0 and 0 < self.pretrain_epochs:
         #     # pretrain
         #     avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr, batch_size=self.pretrain_batch_size)
-        #     print("   pretrain cost: {}".format(avg_cost))
+        #     print("   pretrain cost: {0}".format(avg_cost))
         #     pass
 
         # finetune
         avg_cost = bed.finetune()
-        print(" finetune {}, train cost: {}".format(i,avg_cost))
+        print(" finetune {0}, train cost: {1}".format(i,avg_cost))
 
         time.sleep(1)

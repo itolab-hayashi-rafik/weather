@@ -73,7 +73,7 @@ class Worker(QtCore.QThread):
         for i,y in enumerate(self.gen):
             # predict
             y_preds = self.bed.predict()
-            #print("{}: y={}, y_pred={}".format(i, y, y_pred))
+            #print("{0}: y={1}, y_pred={2}".format(i, y, y_pred))
 
             self.bed.supply(y)
             self.vis.append_data(y, y_preds)
@@ -81,13 +81,13 @@ class Worker(QtCore.QThread):
             if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
                 avg_cost = self.bed.pretrain(self.pretrain_epochs, learning_rate=self.pretrain_lr, batch_size=self.pretrain_batch_size)
-                print("   pretrain cost: {}".format(avg_cost))
+                print("   pretrain cost: {0}".format(avg_cost))
                 pass
 
             # finetune
             costs = self.bed.finetune(self.finetune_epochs, learning_rate=self.finetune_lr, batch_size=self.finetune_batch_size)
             train_cost, valid_cost, test_cost = costs
-            print("   train cost: {}".format(train_cost))
+            print("   train cost: {0}".format(train_cost))
 
             self.vis.append_cost(train_cost, valid_cost, test_cost)
 

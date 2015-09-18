@@ -93,7 +93,7 @@ class StackedLSTM(StackedNetwork):
             layer = LSTM(n_in=input_size,
                          n_out=self.hidden_layers_sizes[i],
                          activation=T.tanh,
-                         prefix="LSTM{}".format(i),
+                         prefix="LSTM{0}".format(i),
                          nrng=self.numpy_rng,
                          trng=self.theano_rng)
             self.layers.append(layer)
@@ -134,6 +134,9 @@ class StackedLSTM(StackedNetwork):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
         # ...
+
+    def build_prediction_function(self):
+        return theano.function([self.x, self.mask], outputs=self.output)
 
     @property
     def finetune_cost(self):
@@ -310,7 +313,7 @@ class StackedConvLSTM(StackedNetwork):
             layer = ConvLSTM(input_shape=input_shape,
                              filter_shape=self.filter_shapes[i],
                              activation=T.tanh,
-                             prefix="ConvLSTM{}".format(i),
+                             prefix="ConvLSTM{0}".format(i),
                              nrng=self.numpy_rng,
                              trng=self.theano_rng)
             self.layers.append(layer)
@@ -353,6 +356,9 @@ class StackedConvLSTM(StackedNetwork):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
+
+    def build_prediction_function(self):
+        return theano.function([self.x, self.mask], outputs=self.output)
 
     @property
     def finetune_cost(self):
