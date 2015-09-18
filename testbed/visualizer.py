@@ -6,84 +6,58 @@ from generator import SinGenerator, RadarGenerator
 
 VIS_DEPTH = 0
 
-def fixed_append(list, item, maxlen):
-    list.append(item)
-    while maxlen < len(list):
-        list.pop(0)
+class ImageMap(object):
+    def __init__(self, w, h, fignum, onclick=None):
+        super(ImageMap, self).__init__()
 
-class ObservationLocation:
-    def __init__(self, vis, xy, fignum, onclose):
-        def handle_close(event):
-            onclose(event, self)
+        self.w = w
+        self.h = h
 
-        self.vis = vis
-        self.xy = xy
         self.fig = plt.figure(fignum)
         plt.clf()
-        self.fig.canvas.mpl_connect('close_event', handle_close)
-        self.ax = plt.subplot(111)
-
-        x, y = self.xy
-        data_y = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y ]
-        self.plot_y = self.ax.plot(self.vis.data_x, data_y, 'b.-')
-        self.plot_y_preds = [None for i in xrange(self.vis.t_out)]
-        for i in xrange(self.vis.t_out):
-            data_y_pred = [ data[i,VIS_DEPTH,y,x] for data in self.vis.data_y_preds ]
-            self.plot_y_preds[i] = self.ax.plot(self.vis.data_x_preds[i], data_y_pred, 'r.-')
-
+        if onclick is not None:
+            self.fig.canvas.mpl_connect('button_press_event', onclick)
+        self.im = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
+        self.colorbar = plt.colorbar()
         plt.show(block=False)
 
     def update(self):
-        x, y = self.xy
-        data_y = [ data[VIS_DEPTH,y,x] for data in self.vis.data_y ]
-        self.plot_y[0].set_data(self.vis.data_x, data_y)
-        for i in xrange(self.vis.t_out):
-            data_y_pred = [ data[i,VIS_DEPTH,y,x] for data in self.vis.data_y_preds ]
-            self.plot_y_preds[i][0].set_data(self.vis.data_x_preds[i], data_y_pred)
-        self.ax.set_xlim(self.vis.data_x_preds[-1][0], self.vis.data_x_preds[-1][-1])
-        self.ax.set_ylim(min(numpy.min(data_y), numpy.min(self.vis.data_y_preds)), max(numpy.max(data_y), numpy.max(self.vis.data_y_preds)))
-        self.ax.autoscale_view(scalex=False,scaley=True)
+        self.im.set_data(self.mapdata)
         self.fig.canvas.draw()
 
-class LearningCurve:
-    def __init__(self, vis, fignum, clim):
-        self.vis = vis
-        self.clim = clim
+    @property
+    def mapdata(self):
+        return numpy.zeros((self.w, self.h))
+
+class LineGraph(object):
+    def __init__(self, fignum, onclose=None):
+        super(LineGraph, self).__init__()
+
         self.fig = plt.figure(fignum)
         plt.clf()
+        if onclose is not None:
+            self.fig.canvas.mpl_connect('close_event', onclose)
         self.ax = plt.subplot(111)
 
-        self.data_iterations = []
-        self.data_costs = []
+        self.plots = []
+        for i, (x,y) in enumerate(self.xydata):
+            self.plots.append(self.ax.plot(x, y, 'b.-')) # FIXME: line color
 
-        self.plot_lc_train = self.ax.plot(self.vis.data_x, [], 'b.-')
-        self.plot_lc_valid = self.ax.plot(self.vis.data_x, [], 'r.-')
-        self.plot_lc_test  = self.ax.plot(self.vis.data_x, [], 'g.-')
         plt.show(block=False)
 
-        self.last_itr = -1
-
-    def append(self, train_cost, valid_cost=None, test_cost=None):
-        itr = self.last_itr + 1
-
-        fixed_append(self.data_iterations, itr, self.clim)
-        fixed_append(self.data_costs, (train_cost, valid_cost, test_cost), self.clim)
-
-        self.last_itr = itr
-        self.update()
-
     def update(self):
-        data_train_cost = [ costs[0] for costs in self.data_costs ]
-        data_valid_cost = [ costs[1] for costs in self.data_costs ]
-        data_test_cost = [ costs[2] for costs in self.data_costs ]
-
-        ymin = min(numpy.min(data_train_cost), numpy.min(data_valid_cost), numpy.min(data_test_cost))
-        ymax = max(numpy.max(data_train_cost), numpy.max(data_valid_cost), numpy.max(data_test_cost))
-
-        self.plot_lc_train[0].set_data(self.data_iterations, data_train_cost)
-        self.plot_lc_valid[0].set_data(self.data_iterations, data_valid_cost)
-        self.plot_lc_test[0].set_data(self.data_iterations, data_test_cost)
-        self.ax.set_xlim(self.data_iterations[0], self.data_iterations[-1])
+        xmin, xmax = (0, 0)
+        ymin, ymax = (0, 0)
+        for i, (x,y) in enumerate(self.xydata):
+            self.plots[i][0].set_data(x, y)
+            xmin = min(xmin, numpy.min(x))
+            xmax = max(xmax, numpy.max(x))
+            ymin = min(ymin, numpy.min(y))
+            ymax = max(ymax, numpy.max(y))
+        self.ax.set_xlim(
+            xmin if xmin is not None else 0,
+            xmax if xmax is not None else 1
+        )
         self.ax.set_ylim(
             ymin if ymin is not None else 0,
             ymax if ymax is not None else 1
@@ -91,92 +65,171 @@ class LearningCurve:
         self.ax.autoscale_view(scalex=False,scaley=True)
         self.fig.canvas.draw()
 
+    @property
+    def xydata(self):
+        return [([0], [0])]
+
+class YMap(ImageMap):
+    def __init__(self, get_data, w, h, fignum, onclick=None):
+        self.get_data = get_data
+
+        super(YMap, self).__init__(w, h, fignum, onclick)
+
+    @property
+    def mapdata(self):
+        return self.get_data()
+
+class ObservationLocationGraph(LineGraph):
+    def __init__(self, x, y, x_preds, y_preds, xy, fignum, onclose=None):
+        self.x = x
+        self.y = y
+        self.x_preds = x_preds
+        self.y_preds = y_preds
+        self.xy = xy
+
+        def handle_close(event):
+            onclose(event, self)
+
+        super(ObservationLocationGraph, self).__init__(fignum, handle_close)
+
+    @property
+    def xydata(self):
+        x = self.x
+        y = self.y[self.xy[0], self.xy[1]]
+
+        preds = []
+        for x_pred, y_pred in zip(self.x_preds, self.y_preds):
+            preds += [(x_pred, y_pred[self.xy[0], self.xy[1]])]
+
+        return [(x, y)] + preds
+
+class LearningCurve(LineGraph):
+    def __init__(self, costs_x, costs_y, fignum):
+        self.costs_x = costs_x
+        self.costs_y = costs_y
+
+        super(LearningCurve, self).__init__(fignum)
+
+    @property
+    def xydata(self):
+        data_x = self.costs_x
+        data_train_cost = [ costs[0] for costs in self.costs_y ]
+        data_valid_cost = [ costs[1] for costs in self.costs_y ]
+        data_test_cost = [ costs[2] for costs in self.costs_y ]
+
+        return [
+            (data_x, data_train_cost),
+            (data_x, data_valid_cost),
+            (data_x, data_test_cost),
+        ]
+
+class Dataset(object):
+    def __init__(self, t_out=1, xlim=30, clim=30):
+        super(Dataset, self).__init__()
+
+        self.t_out = t_out
+        self.xlim = xlim
+        self.clim = clim
+
+        self.last_x = -1
+        self.last_cost_x = -1
+
+        # x
+        self.x = []
+        self.x_preds = [[] for i in xrange(t_out)]
+
+        # y
+        self.y = []
+        self.y_preds = [[] for i in xrange(t_out)]
+
+        # cost
+        self.costs_x = []
+        self.costs_y = []
+
+    def _fixed_append(self, list, item, maxlen):
+        list.append(item)
+        while maxlen < len(list):
+            list.pop(0)
+
+    def append_data(self, y, y_preds):
+        x = self.last_x + 1
+        x_preds = [range(max(0,x-self.xlim+i), x+i) for i in xrange(self.t_out)]
+
+        self._fixed_append(self.x, x, self.xlim)
+        self._fixed_append(self.x_preds, x_preds, self.xlim)
+        self._fixed_append(self.y, y, self.xlim)
+        self._fixed_append(self.y_preds, y_preds, self.xlim)
+
+        self.last_x = x
+
+    def append_cost(self, train_cost, valid_cost, test_cost):
+        cost_x = self.last_x + 1
+
+        costs = (train_cost, valid_cost, test_cost)
+
+        self._fixed_append(self.costs_x, cost_x, self.clim)
+        self._fixed_append(self.costs_y, costs, self.clim)
+
+        self.last_cost_x = cost_x
+
+
 class Visualizer:
     def __init__(self, w=10, h=10, t_out=1, xlim=30, clim=100):
         self.t_out = t_out
 
         fignum = 1
 
-        # data
-        self.data_x = []
-        self.data_x_preds = []
-        self.data_y = []
-        self.data_y_preds = []
+        # dataset
+        self.ds = Dataset(t_out, xlim, clim)
 
         # y
-        self.fig_y = plt.figure(fignum)
+        def y_data():
+            return self.ds.y[-1][VIS_DEPTH]
+        self.im_y = YMap(y_data, w, h, fignum, self.onclick)
         fignum += 1
-        plt.clf()
-        self.fig_y.canvas.mpl_connect('button_press_event', self.onclick)
-        self.im_y = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
-        self.colorbar_y = plt.colorbar()
-        plt.show(block=False)
 
         # y_preds
-        self.fig_y_preds = [None for i in xrange(t_out)]
-        self.im_y_preds = [None for i in xrange(t_out)]
-        self.colorbar_y_preds = [None for i in xrange(t_out)]
+        self.im_y_preds = []
         for i in xrange(t_out):
-            self.fig_y_preds[i] = plt.figure(fignum)
+            def y_pred_data():
+                return self.ds.y_preds[-1][i][VIS_DEPTH]
+            self.im_y_preds.append(YMap(y_pred_data, w, h, fignum, self.onclick))
             fignum += 1
-            plt.clf()
-            self.fig_y_preds[i].canvas.mpl_connect('button_press_event', self.onclick)
-            self.im_y_preds[i] = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
-            self.colorbar_y_preds[i] = plt.colorbar()
-            plt.show(block=False)
 
         # learning curve
-        self.lc = LearningCurve(self, fignum, clim)
+        self.graph_lc = LearningCurve(self.ds.costs_x, self.ds.costs_y, fignum)
         fignum += 1
 
         # observations
-        self.observation_locations = []
+        self.graph_ols = []
         self.next_fignum = fignum
 
-        self.last_x = -1
-        self.xlim=xlim
-
-        self.ymin=0
-        self.ymax=0
-
-    def append(self, y, y_preds):
-        assert isinstance(y, numpy.ndarray)
-        assert isinstance(y_preds, numpy.ndarray)
-
-        x = self.last_x + 1
-        x_preds = [range(x-self.xlim+i, x+i) for i in xrange(self.t_out)]
-
-        fixed_append(self.data_x, x, self.xlim)
-        fixed_append(self.data_x_preds, x_preds, self.xlim)
-        fixed_append(self.data_y, y, self.xlim)
-        fixed_append(self.data_y_preds, y_preds, self.xlim)
-
-        self.last_x = x
+    def append_data(self, y, y_preds):
+        self.ds.append_data(y, y_preds)
         self.update()
 
-    def append_lc(self, train_cost, valid_cost=None, test_cost=None):
-        self.lc.append(train_cost, valid_cost, test_cost)
+    def append_cost(self, train_cost, valid_cost=None, test_cost=None):
+        self.ds.append_cost(train_cost, valid_cost, test_cost)
+        self.graph_lc.update()
 
     def update(self):
         # y
-        self.im_y.set_data(self.data_y[-1][VIS_DEPTH])
-        self.fig_y.canvas.draw()
+        self.im_y.update()
 
         # y_preds
-        for i, (fig, im, colorbar) in enumerate(zip(self.fig_y_preds, self.im_y_preds, self.colorbar_y_preds)):
-            im.set_data(self.data_y_preds[-1][i][VIS_DEPTH])
-            fig.canvas.draw()
+        for im in self.im_y_preds:
+            im.update()
 
         # observation locations
-        for ol in self.observation_locations:
+        for ol in self.graph_ols:
             ol.update()
 
     def addObservationLocation(self, xy):
-        def handle_close(event, ol):
-            self.observation_locations.remove(ol)
+        def handle_close(event, olg):
+            self.graph_ols.remove(olg)
 
-        ol = ObservationLocation(self, xy, self.next_fignum, handle_close)
-        self.observation_locations.append(ol)
+        ol = ObservationLocationGraph(self.ds.x, self.ds.y, self.ds.x_preds, self.ds.y_preds, xy, self.next_fignum, handle_close)
+        self.graph_ols.append(ol)
         self.next_fignum += 1
 
     def onclick(self, event):
@@ -188,11 +241,13 @@ if __name__ == '__main__':
     w = 28
     h = 28
     delay = 0.1
-    gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
+    gen = SinGenerator(w=w, h=h, d=1)
+    # gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
     vis = Visualizer(w=w, h=h, t_out=1)
 
     time.sleep(10)
     for i,y in enumerate(gen):
         print("{}: max={}".format(i,numpy.max(y)))
-        vis.append(y, y)
+        vis.append_data(y, numpy.asarray([y]))
+        vis.append_cost(1.0/float(i+1), 2.0/float(i+1), None)
         time.sleep(delay)

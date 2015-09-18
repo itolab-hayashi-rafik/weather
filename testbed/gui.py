@@ -76,7 +76,7 @@ class Worker(QtCore.QThread):
             #print("{}: y={}, y_pred={}".format(i, y, y_pred))
 
             self.bed.supply(y)
-            self.vis.append(y, y_preds)
+            self.vis.append_data(y, y_preds)
 
             if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
@@ -89,7 +89,7 @@ class Worker(QtCore.QThread):
             train_cost, valid_cost, test_cost = costs
             print("   train cost: {}".format(train_cost))
 
-            self.vis.append_lc(train_cost, valid_cost, test_cost)
+            self.vis.append_cost(train_cost, valid_cost, test_cost)
 
             self.updated.emit(y, y_preds)
 
@@ -212,8 +212,8 @@ class Window(QtGui.QDialog):
             self.worker.setup(window_size=window_size, t_in=t_in, w=w, h=h, d=d, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
             self.need_setup = False
         self.updateWorker()
-        self.worker.run() # use this for debugging
-        # self.worker.start()
+        # self.worker.run() # use this for debugging
+        self.worker.start()
 
     def stop(self):
         self.start_stop_button.setText('Start')
