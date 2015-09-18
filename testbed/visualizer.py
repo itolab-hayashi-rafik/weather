@@ -46,22 +46,16 @@ class LineGraph(object):
         plt.show(block=False)
 
     def update(self):
-        xmin, xmax = (0, 0)
-        ymin, ymax = (0, 0)
+        xmin, xmax = (None, None)
+        ymin, ymax = (None, None)
         for i, (x,y) in enumerate(self.xydata):
             self.plots[i][0].set_data(x, y)
-            xmin = min(xmin, numpy.min(x))
-            xmax = max(xmax, numpy.max(x))
-            ymin = min(ymin, numpy.min(y))
-            ymax = max(ymax, numpy.max(y))
-        self.ax.set_xlim(
-            xmin if xmin is not None else 0,
-            xmax if xmax is not None else 1
-        )
-        self.ax.set_ylim(
-            ymin if ymin is not None else 0,
-            ymax if ymax is not None else 1
-        )
+            xmin = min(n for n in [xmin, numpy.min(x)] if n is not None)
+            xmax = max(n for n in [xmax, numpy.max(x)] if n is not None)
+            ymin = min(n for n in [ymin, numpy.min(y)] if n is not None)
+            ymax = max(n for n in [ymax, numpy.max(y)] if n is not None)
+        self.ax.set_xlim(xmin, xmax)
+        self.ax.set_ylim(ymin, ymax)
         self.ax.autoscale_view(scalex=False,scaley=True)
         self.fig.canvas.draw()
 
@@ -80,12 +74,13 @@ class YMap(ImageMap):
         return self.get_data()
 
 class ObservationLocationGraph(LineGraph):
-    def __init__(self, x, y, x_preds, y_preds, xy, fignum, onclose=None):
+    def __init__(self, x, y, x_preds, y_preds, xy, t_out, fignum, onclose=None):
         self.x = x
         self.y = y
         self.x_preds = x_preds
         self.y_preds = y_preds
         self.xy = xy
+        self.t_out = t_out
 
         def handle_close(event):
             onclose(event, self)
@@ -94,12 +89,16 @@ class ObservationLocationGraph(LineGraph):
 
     @property
     def xydata(self):
+        px, py = self.xy
         x = self.x
-        y = self.y[self.xy[0], self.xy[1]]
+        y = [ data[VIS_DEPTH, px, py] for data in self.y ]
 
-        preds = []
-        for x_pred, y_pred in zip(self.x_preds, self.y_preds):
-            preds += [(x_pred, y_pred[self.xy[0], self.xy[1]])]
+        preds = [
+            (
+                [x_pred[i] for x_pred in self.x_preds],
+                [y_pred[i][VIS_DEPTH, px, py] for y_pred in self.y_preds]
+            ) for i in xrange(self.t_out)
+        ]
 
         return [(x, y)] + preds
 
@@ -136,11 +135,11 @@ class Dataset(object):
 
         # x
         self.x = []
-        self.x_preds = [[] for i in xrange(t_out)]
+        self.x_preds = []
 
         # y
         self.y = []
-        self.y_preds = [[] for i in xrange(t_out)]
+        self.y_preds = []
 
         # cost
         self.costs_x = []
@@ -153,7 +152,7 @@ class Dataset(object):
 
     def append_data(self, y, y_preds):
         x = self.last_x + 1
-        x_preds = [range(max(0,x-self.xlim+i), x+i) for i in xrange(self.t_out)]
+        x_preds = [range(max(0,x-self.xlim+i+1), x+i+1) for i in xrange(self.t_out)]
 
         self._fixed_append(self.x, x, self.xlim)
         self._fixed_append(self.x_preds, x_preds, self.xlim)
@@ -226,9 +225,10 @@ class Visualizer:
 
     def addObservationLocation(self, xy):
         def handle_close(event, olg):
-            self.graph_ols.remove(olg)
+            if olg in self.graph_ols:
+                self.graph_ols.remove(olg)
 
-        ol = ObservationLocationGraph(self.ds.x, self.ds.y, self.ds.x_preds, self.ds.y_preds, xy, self.next_fignum, handle_close)
+        ol = ObservationLocationGraph(self.ds.x, self.ds.y, self.ds.x_preds, self.ds.y_preds, xy, self.t_out, self.next_fignum, handle_close)
         self.graph_ols.append(ol)
         self.next_fignum += 1
 
@@ -250,4 +250,8 @@ if __name__ == '__main__':
         print("{}: max={}".format(i,numpy.max(y)))
         vis.append_data(y, numpy.asarray([y]))
         vis.append_cost(1.0/float(i+1), 2.0/float(i+1), None)
+
+        if i == 10:
+            vis.addObservationLocation((0,0))
+
         time.sleep(delay)
