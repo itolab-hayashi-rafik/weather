@@ -95,7 +95,7 @@ class ObservationLocationGraph(LineGraph):
 
         preds = [
             (
-                [x_pred[i] for x_pred in self.x_preds],
+                self.x_preds[i],
                 [y_pred[i][VIS_DEPTH, px, py] for y_pred in self.y_preds]
             ) for i in xrange(self.t_out)
         ]
@@ -135,7 +135,7 @@ class Dataset(object):
 
         # x
         self.x = []
-        self.x_preds = []
+        self.x_preds = [[] for i in xrange(t_out)]
 
         # y
         self.y = []
@@ -152,10 +152,10 @@ class Dataset(object):
 
     def append_data(self, y, y_preds):
         x = self.last_x + 1
-        x_preds = [range(max(0,x-self.xlim+i+1), x+i+1) for i in xrange(self.t_out)]
 
         self._fixed_append(self.x, x, self.xlim)
-        self._fixed_append(self.x_preds, x_preds, self.xlim)
+        for i in xrange(self.t_out):
+            self._fixed_append(self.x_preds[i], x+i, self.xlim)
         self._fixed_append(self.y, y, self.xlim)
         self._fixed_append(self.y_preds, y_preds, self.xlim)
 
