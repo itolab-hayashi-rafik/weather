@@ -467,7 +467,10 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
             self.conv_layer.input = y_ # a bit hacky way... should be fixed
             y_ = self.conv_layer.output
 
-            return [y_] + new_states
+            # parameters to pass to next step are: input to the decoder at next time interval (which is
+            # the output of the decoder at this time interval), hidden states, and the output of the
+            # decoder at this time interval, so that the last parameter will be the output of the decoder
+            return [y_] + new_states + [y_]
 
         rval, updates = theano.scan(
             step,
@@ -483,3 +486,4 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
+
