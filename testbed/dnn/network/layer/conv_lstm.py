@@ -41,8 +41,9 @@ class ConvLSTM(RNN):
         assert(input_shape[0] == filter_shape[1])
 
         self.input_shape = input_shape
-        self.filter_shape = filter_shape
-        self.output_shape = (self.filter_shape[0], self.input_shape[1], self.input_shape[2])
+        self.input_filter_shape = filter_shape
+        self.hidden_filter_shape = (filter_shape[0], filter_shape[0], filter_shape[2], filter_shape[3])
+        self.output_shape = (filter_shape[0], input_shape[1], input_shape[2])
         self.poolsize = poolsize
         self.border_mode = border_mode
 
@@ -66,10 +67,10 @@ class ConvLSTM(RNN):
         x = T.nnet.conv2d(
             input=input,
             filters=filters,
-            filter_shape=self.filter_shape,
-            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            # filter_shape=self.filter_shape,
+            # image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
             border_mode=self.border_mode # zero padding the edge
-        ) # (n_samples, self.filter_shape[0], self.input_shape[1] + self.filter_shape[1] - 1, self.input_shape[2] + self.filter_shape[2] - 1)
+        )
 
         # downsample each feature map individually, using maxpooling
         x = downsample.max_pool_2d(
@@ -80,10 +81,10 @@ class ConvLSTM(RNN):
 
         # reshape x_ so that the size of output tensor matches that of the input of LSTM
         if self.border_mode == 'full':
-            h_bound_l = int(self.filter_shape[2] / 2)
-            h_bound_r = -h_bound_l if self.filter_shape[2] % 2 == 1 else -h_bound_l+1
-            w_bound_l = int(self.filter_shape[3] / 2)
-            w_bound_r = -w_bound_l if self.filter_shape[3] % 2 == 1 else -w_bound_l+1
+            h_bound_l = int(self.input_filter_shape[2] / 2)
+            h_bound_r = -h_bound_l if self.input_filter_shape[2] % 2 == 1 else -h_bound_l+1
+            w_bound_l = int(self.input_filter_shape[3] / 2)
+            w_bound_r = -w_bound_l if self.input_filter_shape[3] % 2 == 1 else -w_bound_l+1
             if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
                 x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
             elif h_bound_l != h_bound_r:
@@ -99,48 +100,48 @@ class ConvLSTM(RNN):
         return x
 
     def setup(self):
-        Wxf_value = self.random_initialization(self.filter_shape)
+        Wxf_value = self.random_initialization(self.input_filter_shape)
         self.Wxf = self._shared(Wxf_value, name="Wxf", borrow=True)
-        Whf_value = self.random_initialization(self.filter_shape)
+        Whf_value = self.random_initialization(self.hidden_filter_shape)
         self.Whf = self._shared(Whf_value, name="Whf", borrow=True)
-        Wcf_value = self.random_initialization(self.input_shape)
+        Wcf_value = self.random_initialization(self.output_shape)
         self.Wcf = self._shared(Wcf_value, name="Wcf", borrow=True)
-        bf_value = numpy.zeros(self.output_shape, dtype=theano.config.floatX)
+        bf_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bf = self._shared(bf_value, name="bf", borrow=True)
 
-        Wxi_value = self.random_initialization(self.filter_shape)
+        Wxi_value = self.random_initialization(self.input_filter_shape)
         self.Wxi = self._shared(Wxi_value, name="Wxi", borrow=True)
-        Whi_value = self.random_initialization(self.filter_shape)
+        Whi_value = self.random_initialization(self.hidden_filter_shape)
         self.Whi = self._shared(Whi_value, name="Whi", borrow=True)
-        Wci_value = self.random_initialization(self.input_shape)
+        Wci_value = self.random_initialization(self.output_shape)
         self.Wci = self._shared(Wci_value, name="Wci", borrow=True)
-        bi_value = numpy.zeros(self.output_shape, dtype=theano.config.floatX)
+        bi_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bi = self._shared(bi_value, name="bi", borrow=True)
 
-        Wxc_value = self.random_initialization(self.filter_shape)
+        Wxc_value = self.random_initialization(self.input_filter_shape)
         self.Wxc = self._shared(Wxc_value, name="Wxc", borrow=True)
-        Whc_value = self.random_initialization(self.filter_shape)
+        Whc_value = self.random_initialization(self.hidden_filter_shape)
         self.Whc = self._shared(Whc_value, name="Whc", borrow=True)
-        bc_value = numpy.zeros(self.output_shape, dtype=theano.config.floatX)
+        bc_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bc = self._shared(bc_value, name="bc", borrow=True)
 
-        Wxo_value = self.random_initialization(self.filter_shape)
+        Wxo_value = self.random_initialization(self.input_filter_shape)
         self.Wxo = self._shared(Wxo_value, name="Wxo", borrow=True)
-        Who_value = self.random_initialization(self.filter_shape)
+        Who_value = self.random_initialization(self.hidden_filter_shape)
         self.Who = self._shared(Who_value, name="Who", borrow=True)
-        Wco_value = self.random_initialization(self.input_shape)
+        Wco_value = self.random_initialization(self.output_shape)
         self.Wco = self._shared(Wco_value, name="Wco", borrow=True)
-        bo_value = numpy.zeros(self.output_shape, dtype=theano.config.floatX)
+        bo_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bo = self._shared(bo_value, name="bo", borrow=True)
 
     def step(self, m_, x_, c_, h_):
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
 
-        f = T.nnet.sigmoid(self.conv(x_, self.Wxf) + self.conv(h_, self.Whf) + self.Wcf * c_ + self.bf)
-        i = T.nnet.sigmoid(self.conv(x_, self.Wxi) + self.conv(h_, self.Whi) + self.Wci * c_ + self.bi)
-        o = T.nnet.sigmoid(self.conv(x_, self.Wxo) + self.conv(h_, self.Who) + self.Wco * c_ + self.bo)
-        c = T.tanh(self.conv(x_, self.Wxc) + self.conv(h_, self.Whc) + self.bc)
+        f = T.nnet.sigmoid(self.conv(x_, self.Wxf) + self.conv(h_, self.Whf) + self.Wcf * c_ + self.bf.dimshuffle('x',0,'x','x'))
+        i = T.nnet.sigmoid(self.conv(x_, self.Wxi) + self.conv(h_, self.Whi) + self.Wci * c_ + self.bi.dimshuffle('x',0,'x','x'))
+        o = T.nnet.sigmoid(self.conv(x_, self.Wxo) + self.conv(h_, self.Who) + self.Wco * c_ + self.bo.dimshuffle('x',0,'x','x'))
+        c = T.tanh(self.conv(x_, self.Wxc) + self.conv(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
 
         c = f * c_ + i * c
 

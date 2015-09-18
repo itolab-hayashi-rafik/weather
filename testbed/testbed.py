@@ -37,7 +37,7 @@ class TestBed(object):
 
         numpy_rng = numpy.random.RandomState(89677)
         # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,sqrt(n),sqrt(n)), which means it has one sqrt(n)*sqrt(n) sized filter
-        filter_shapes = [(1,d,k,k) for k in hidden_layers_sizes]
+        filter_shapes = [(10,d,k,k) for k in hidden_layers_sizes]
 
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
