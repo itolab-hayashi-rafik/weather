@@ -35,13 +35,10 @@ class HiddenLayer(Layer):
         if self.activation == T.nnet.sigmoid:
             W_values *= 4
 
-        W = self._shared(value=W_values, name='W', borrow=True)
+        self.W = self._shared(value=W_values, name='W', borrow=True)
 
         b_values = numpy.zeros((self.n_out,), dtype=theano.config.floatX)
-        b = self._shared(value=b_values, name='b', borrow=True)
-
-        self.W = W
-        self.b = b
+        self.b = self._shared(value=b_values, name='b', borrow=True)
 
     @property
     def output(self):
