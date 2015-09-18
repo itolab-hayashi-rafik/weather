@@ -34,12 +34,13 @@ tensor5s, ftensor5s, dtensor5s, itensor5s, ltensor5s = _multi(
 
 
 class Network(object):
-    def __init__(self, numpy_rng, theano_rng=None):
+    def __init__(self, numpy_rng, theano_rng=None, name="Network"):
         if not theano_rng:
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
 
         self.numpy_rng = numpy_rng
         self.theano_rng = theano_rng
+        self.name = name
 
         # setup the network
         self.setup()
@@ -80,6 +81,7 @@ class StandaloneNetwork(Network):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StandaloneNetwork",
                  input=None,
                  mask=None,
                  output=None,
@@ -91,7 +93,7 @@ class StandaloneNetwork(Network):
         self.is_rnn = is_rnn
         self.layers = []
 
-        super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng)
+        super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng, name)
 
     @property
     def finetune_cost(self):

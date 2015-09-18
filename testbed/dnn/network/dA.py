@@ -33,6 +33,7 @@ class dA(Network):
             self,
             numpy_rng,
             theano_rng=None,
+            name="dA",
             input=None,
             n_visible=784,
             n_hidden=500,
@@ -86,7 +87,7 @@ class dA(Network):
 
 
         """
-        super(dA, self).__init__(numpy_rng, theano_rng)
+        super(dA, self).__init__(numpy_rng, theano_rng, name)
 
         self.n_visible = n_visible
         self.n_hidden = n_hidden

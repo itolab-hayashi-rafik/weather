@@ -15,6 +15,7 @@ class StackedNetwork(StandaloneNetwork):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StackedNetwork",
                  input=None,
                  mask=None,
                  output=None,
@@ -22,7 +23,7 @@ class StackedNetwork(StandaloneNetwork):
     ):
         self.layers = []
 
-        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn)
+        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn)
 
     def setup(self):
         '''
@@ -56,6 +57,7 @@ class StackedLSTM(StackedNetwork):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StackedLSTM",
                  input=None,
                  mask=None,
                  output=None,
@@ -77,7 +79,7 @@ class StackedLSTM(StackedNetwork):
             # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
             output = T.tensor3('y', dtype=theano.config.floatX)
 
-        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
+        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -93,7 +95,7 @@ class StackedLSTM(StackedNetwork):
             layer = LSTM(n_in=input_size,
                          n_out=self.hidden_layers_sizes[i],
                          activation=T.tanh,
-                         prefix="LSTM{0}".format(i),
+                         prefix="{0}_LSTM{1}".format(self.name,i),
                          nrng=self.numpy_rng,
                          trng=self.theano_rng)
             self.layers.append(layer)
@@ -124,7 +126,7 @@ class StackedLSTM(StackedNetwork):
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
             outputs_info=outputs_info,
-            name="StackedLSTM"
+            name="{0}_scan".format(self.name)
         )
         self.rval = rval
 
@@ -166,6 +168,7 @@ class StackedLSTMEncoder(StackedLSTM):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StackedLSTMEncoder",
                  input=None,
                  mask=None,
                  output=None,
@@ -176,7 +179,7 @@ class StackedLSTMEncoder(StackedLSTM):
         # we need the output of the same size as the input
         assert n_ins == hidden_layers_sizes[0] and n_ins == hidden_layers_sizes[-1]
 
-        super(StackedLSTMEncoder, self).__init__(numpy_rng, theano_rng, input, mask, output, n_ins, hidden_layers_sizes)
+        super(StackedLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, n_ins, hidden_layers_sizes)
 
     @property
     def last_states(self):
@@ -196,6 +199,7 @@ class StackedLSTMDecoder(StackedLSTM):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StackedLSTMDecoder",
                  input=None,
                  mask=None,
                  output=None,
@@ -212,7 +216,7 @@ class StackedLSTMDecoder(StackedLSTM):
         self.initial_hidden_states = initial_hidden_states
         self.n_timesteps = n_timesteps
 
-        super(StackedLSTMDecoder, self).__init__(numpy_rng, theano_rng, input, mask, output, n_ins, hidden_layers_sizes)
+        super(StackedLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, n_ins, hidden_layers_sizes)
 
     def setup_scan(self):
         n_timesteps = self.n_timesteps
@@ -236,7 +240,7 @@ class StackedLSTMDecoder(StackedLSTM):
             step,
             n_steps=n_timesteps,
             outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
-            name="StackedLSTM_Decoder"
+            name="{0}_scan".format(self.name)
         )
         self.rval = rval
 
@@ -257,6 +261,7 @@ class StackedConvLSTM(StackedNetwork):
             self,
             numpy_rng,
             theano_rng=None,
+            name="StackedConvLSTM",
             input=None,
             mask=None,
             output=None,
@@ -298,7 +303,7 @@ class StackedConvLSTM(StackedNetwork):
             # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
             output = tensor5('y', dtype=theano.config.floatX)
 
-        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
+        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -313,7 +318,7 @@ class StackedConvLSTM(StackedNetwork):
             layer = ConvLSTM(input_shape=input_shape,
                              filter_shape=self.filter_shapes[i],
                              activation=T.tanh,
-                             prefix="ConvLSTM{0}".format(i),
+                             prefix="{0}_ConvLSTM{1}".format(self.name,i),
                              nrng=self.numpy_rng,
                              trng=self.theano_rng)
             self.layers.append(layer)
@@ -346,7 +351,7 @@ class StackedConvLSTM(StackedNetwork):
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
             outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
-            name="StackedConvLSTM"
+            name="{0}_scan".format(self.name)
         )
         self.rval = rval
 
@@ -384,6 +389,10 @@ class StackedConvLSTMEncoder(StackedConvLSTM):
     '''
     An implementation of Stacked ConvLSTM Encoder
     '''
+
+    def __init__(self, numpy_rng, theano_rng=None, name="StackedConvLSTMEncoder", input=None, mask=None, output=None, input_shape=(1, 28, 28), filter_shapes=[(1, 1, 3, 3)]):
+        super(StackedConvLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, input_shape, filter_shapes)
+
     @property
     def last_states(self):
         return [
@@ -401,6 +410,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="StackedConvLSTMDecoder",
                  input=None,
                  mask=None,
                  output=None,
@@ -416,20 +426,20 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         self.initial_hidden_states = initial_hidden_states
         self.n_timesteps = n_timesteps
 
-        # determine decoder filter shape
+        # determine conv filter shape
         n_output_feature_maps = encoder.input_shape[0] # num of output feature maps = num of encoder's input feature maps
         n_hiddens = sum([s[0] for s in encoder.filter_shapes]) # the number of total output feature maps (num of hidden states)
-        self.decoder_input_shape = (n_hiddens, encoder.input_shape[1], encoder.input_shape[2])
-        self.decoder_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
+        self.conv_input_shape = (n_hiddens, encoder.input_shape[1], encoder.input_shape[2])
+        self.conv_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
 
-        super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, input, mask, output, input_shape, filter_shapes)
+        super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, input_shape, filter_shapes)
 
     def setup(self):
-        self.decoder_layer = Conv(
+        self.conv_layer = Conv(
             None,
-            self.decoder_input_shape,
-            self.decoder_filter_shape,
-            prefix="Conv_DecoderLayer"
+            self.conv_input_shape,
+            self.conv_filter_shape,
+            prefix="{0}_ConvLayer".format(self.name)
         )
         super(StackedConvLSTMDecoder, self).setup()
 
@@ -454,8 +464,8 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
 
             # concatenate outputs of each ConvLSTM
             y_ = T.concatenate(new_states[1::2], axis=0) # concatenate h_ outputs of all layers
-            self.decoder_layer.input = y_ # a bit hacky way... should be fixed
-            y_ = self.decoder_layer.output
+            self.conv_layer.input = y_ # a bit hacky way... should be fixed
+            y_ = self.conv_layer.output
 
             return [y_] + new_states
 
@@ -463,7 +473,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
             step,
             n_steps=n_timesteps,
             outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
-            name="StackedConvLSTM_Decoder"
+            name="{0}_scan".format(self.name)
         )
         self.rval = rval
 

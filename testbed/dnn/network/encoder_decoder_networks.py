@@ -13,6 +13,7 @@ class EncoderDecoderNetwork(StandaloneNetwork):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="EncoderDecoderNetwork",
                  input=None,
                  mask=None,
                  output=None,
@@ -24,7 +25,7 @@ class EncoderDecoderNetwork(StandaloneNetwork):
         assert input is not None
         assert output is not None
 
-        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn)
+        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn)
 
     def setup(self):
         '''
@@ -58,6 +59,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="EncoderDecoderLSTM",
                  input=None,
                  mask=None,
                  output=None,
@@ -92,7 +94,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
             # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
             output = T.tensor3('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
+        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
         # Encoder network
@@ -122,6 +124,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
+                 name="EncoderDecoderConvLSTM",
                  input=None,
                  mask=None,
                  output=None,
@@ -156,7 +159,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
             output = tensor5('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, input, mask, output, is_rnn=True)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
         # Encoder network
