@@ -34,7 +34,6 @@ class HiddenLayer(Layer):
         )
         if self.activation == T.nnet.sigmoid:
             W_values *= 4
-
         self.W = self._shared(value=W_values, name='W', borrow=True)
 
         b_values = numpy.zeros((self.n_out,), dtype=theano.config.floatX)
