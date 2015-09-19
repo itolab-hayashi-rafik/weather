@@ -60,6 +60,7 @@ def generate_conv(image_file='data/Lenna.png', out_dir='out', W_value=None):
 
     # calculate the output
     out = f(input)
+    out = theano.shared(out).dimshuffle(0,3,2,1).eval()
 
     img_in.save('{0}/{1}_in.png'.format(out_dir, filename(image_file)))
     # plt.imshow(img_in)
