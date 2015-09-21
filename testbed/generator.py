@@ -68,12 +68,19 @@ class SinGenerator(Generator):
         return numpy.asarray(data, dtype=theano.config.floatX)
 
 class RadarGenerator(Generator):
-    def __init__(self, dir, w=0, h=0, left=0, top=0):
+    def __init__(self, dir, w=0, h=0, offset=(0,0,0)):
+        '''
+
+        :param dir:
+        :param w:
+        :param h:
+        :param offset: offsets of (x, y, timestep)
+        :return:
+        '''
         super(RadarGenerator, self).__init__(w=w, h=h, d=1)
         dir = os.path.join(os.path.dirname(__file__), dir)
         self.dir = dir
-        self.left = left
-        self.top = top
+        self.offset = offset
 
         cwd = os.getcwd()
         os.chdir(dir)
@@ -82,6 +89,7 @@ class RadarGenerator(Generator):
         os.chdir(cwd)
 
         self.i = -1
+        self.i += offset[2]
 
     def next(self):
         super(RadarGenerator, self).next()
@@ -104,27 +112,26 @@ class RadarGenerator(Generator):
 
             w = self.w if 0 < self.w else n_cols
             h = self.h if 0 < self.h else n_rows
-            w = w - self.left if n_cols < self.left + w else w
-            h = h - self.top if n_rows < self.top + h else h
+            w = w - self.offset[0] if n_cols < self.offset[0] + w else w
+            h = h - self.offset[1] if n_rows < self.offset[1] + h else h
 
             for timeline in reader:
                 chunk = []
                 for row in xrange(n_rows):
                     line = next(reader)
-                    chunk.append(line[self.left:self.left+w])
-                data.append(chunk[self.top:self.top+h])
+                    chunk.append(line[self.offset[0]:self.offset[0]+w])
+                data.append(chunk[self.offset[1]:self.offset[1]+h])
 
         return numpy.asarray(data, dtype=theano.config.floatX) / 100.0
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, left=0, top=0, meshsize=(45,30), basepos=(491400,124200), imgbasepos=(), imgbaselng=135, imgscale=1.0):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200), imgbasepos=(), imgbaselng=135, imgscale=1.0):
         '''
 
         :param dir:
         :param w:
         :param h:
-        :param left:
-        :param top:
+        :param offset: offsets of (x, y, timestep)
         :param meshsize: the size of each cell in the grid (unit: sec)
         :param basepos: the lat long position of the northwest (unit: sec)
         :param imgbasepos:
@@ -136,8 +143,7 @@ class SatelliteGenerator(Generator):
         super(SatelliteGenerator, self).__init__(w, h, 1)
         dir = os.path.join(os.path.dirname(__file__), dir)
         self.dir = dir
-        self.left = left
-        self.top = top
+        self.offset = offset
         self.meshsize = meshsize
         self.basepos = basepos
         self.imgbasepos = imgbasepos
@@ -151,6 +157,7 @@ class SatelliteGenerator(Generator):
         os.chdir(cwd)
 
         self.i = -1
+        self.i += offset[2]
 
     def next(self):
         super(SatelliteGenerator, self).next()
@@ -180,8 +187,8 @@ class SatelliteGenerator(Generator):
                     [
                         [
                             getval(
-                                self.basepos[0]+self.left+self.meshsize[0]*i,
-                                self.basepos[1]+self.top+self.meshsize[1]*j,
+                                self.basepos[0]+self.offset[0]+self.meshsize[0]*i,
+                                self.basepos[1]+self.offset[1]+self.meshsize[1]*j,
                                 k
                             )
                         ] for i in xrange(self.w)
