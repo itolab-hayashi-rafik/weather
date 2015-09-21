@@ -6,9 +6,6 @@ from theano.configparser import config
 from theano.tensor.basic import _multi
 from theano.tensor.type import TensorType
 from theano.tensor.shared_randomstreams import RandomStreams
-from theano.gof.utils import flatten
-
-import optimizers as O
 
 ctensor5 = TensorType('complex64', ((False,) * 5))
 ztensor5 = TensorType('complex128', ((False,) * 5))
@@ -34,13 +31,14 @@ tensor5s, ftensor5s, dtensor5s, itensor5s, ltensor5s = _multi(
 
 
 class Network(object):
-    def __init__(self, numpy_rng, theano_rng=None, name="Network"):
+    def __init__(self, numpy_rng, theano_rng=None, is_rnn=False, name="Network"):
         if not theano_rng:
             theano_rng = RandomStreams(numpy_rng.randint(2 ** 30))
 
         self.numpy_rng = numpy_rng
         self.theano_rng = theano_rng
         self.name = name
+        self.is_rnn = is_rnn
 
         # setup the network
         self.setup()
@@ -90,39 +88,5 @@ class StandaloneNetwork(Network):
         self.x = input
         self.mask = mask
         self.y = output
-        self.is_rnn = is_rnn
-        self.layers = []
 
-        super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng, name)
-
-    @property
-    def finetune_cost(self):
-        '''
-        :return: the cost of finetune
-        '''
-        return T.mean((self.output - self.y)**2)
-
-    def build_finetune_function(self, optimizer=O.adadelta):
-        '''
-        build the finetune function
-        :param optimizer: an optimizer to use
-        :return:
-        '''
-        learning_rate = T.scalar('lr', dtype=theano.config.floatX)
-
-        cost = self.finetune_cost
-        params = flatten(self.params)
-        grads = T.grad(cost, params)
-
-        f_validate = theano.function([self.x, self.mask, self.y], cost)
-
-        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
-                                            self.x, self.mask, self.y, cost)
-
-        return (f_grad_shared, f_update, f_validate)
-
-    def build_prediction_function(self):
-        if self.is_rnn:
-            return theano.function([self.x, self.mask], outputs=self.outputs)
-        else:
-            return theano.function([self.x, self.mask], outputs=self.output)
+        super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng, is_rnn, name)

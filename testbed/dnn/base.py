@@ -3,6 +3,11 @@ import pdb, traceback, sys
 from abc import ABCMeta, abstractmethod
 import numpy
 import theano
+import theano.tensor as T
+from theano import printing
+from theano.gof.utils import flatten
+
+import optimizers as O
 
 class Model(object):
     __metaclass__ = ABCMeta
@@ -40,11 +45,11 @@ class BaseModel(Model):
         self.t_out = t_out
 
         print('Building finetune function...'),
-        self.f_grad_shared, self.f_update, self.f_validate = self.dnn.build_finetune_function()
+        self.f_grad_shared, self.f_update, self.f_validate = self.build_finetune_function()
         print('done')
 
         print('Building predict function...'),
-        self.f_predict = self.dnn.build_prediction_function()
+        self.f_predict = self.build_prediction_function()
         print('done')
 
     @property
@@ -66,6 +71,34 @@ class BaseModel(Model):
         self.w = param_list['w']
         self.h = param_list['h']
         self.t_out = param_list['t_out']
+
+    def build_finetune_function(self, optimizer=O.adadelta):
+        '''
+        build the finetune function
+        :param optimizer: an optimizer to use
+        :return:
+        '''
+        learning_rate = T.scalar('lr', dtype=theano.config.floatX)
+
+        y = self.dnn.y
+        y_ = self.dnn.output
+
+        cost = T.mean((y - y_)**2)
+        params = flatten(self.dnn.params)
+        grads = T.grad(cost, params)
+
+        f_validate = theano.function([self.dnn.x, self.dnn.mask, self.dnn.y], cost)
+
+        f_grad_shared, f_update = optimizer(learning_rate, params, grads,
+                                            self.dnn.x, self.dnn.mask, self.dnn.y, cost)
+
+        return (f_grad_shared, f_update, f_validate)
+
+    def build_prediction_function(self):
+        if self.dnn.is_rnn:
+            return theano.function([self.dnn.x, self.dnn.mask], outputs=self.dnn.outputs)
+        else:
+            return theano.function([self.dnn.x, self.dnn.mask], outputs=self.dnn.output)
 
     def _make_input(self, dataset, idx):
         '''
@@ -198,7 +231,7 @@ class BaseModel(Model):
                 avg_cost += cost / len(kf)
 
                 if numpy.isnan(cost) or numpy.isinf(cost):
-                    print 'NaN detected'
+                    print('NaN detected, cost={0}'.format(cost))
                     type, value, tb = sys.exc_info()
                     traceback.print_exc()
                     pdb.post_mortem(tb)
