@@ -5,6 +5,7 @@ import pylab as plt
 from generator import SinGenerator, RadarGenerator
 
 VIS_DEPTH = 0
+LINE_DEFS = ['b.-', 'r.-', 'g.-']
 
 class ImageMap(object):
     def __init__(self, w, h, fignum, onclick=None):
@@ -41,7 +42,7 @@ class LineGraph(object):
 
         self.plots = []
         for i, (x,y) in enumerate(self.xydata):
-            self.plots.append(self.ax.plot(x, y, 'b.-')) # FIXME: line color
+            self.plots.append(self.ax.plot(x, y, LINE_DEFS[i % len(LINE_DEFS)])) # FIXME: line color
 
         plt.show(block=False)
 
