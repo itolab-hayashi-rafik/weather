@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 import numpy
 import theano
 import theano.tensor as T
+from theano import printing
 from theano.gof.utils import flatten
 
 import optimizers as O
@@ -82,8 +83,8 @@ class BaseModel(Model):
         y = self.dnn.y
         y_ = self.dnn.output
 
-        cost = T.sum(y * T.log(y_) + (1-y) * T.log(1-y_))
-        params = flatten(self.params)
+        cost = T.mean((y - y_)**2)
+        params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
 
         f_validate = theano.function([self.dnn.x, self.dnn.mask, self.dnn.y], cost)
@@ -230,7 +231,7 @@ class BaseModel(Model):
                 avg_cost += cost / len(kf)
 
                 if numpy.isnan(cost) or numpy.isinf(cost):
-                    print 'NaN detected'
+                    print('NaN detected, cost={0}'.format(cost))
                     type, value, tb = sys.exc_info()
                     traceback.print_exc()
                     pdb.post_mortem(tb)
