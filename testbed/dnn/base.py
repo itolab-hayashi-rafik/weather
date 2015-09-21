@@ -82,7 +82,7 @@ class BaseModel(Model):
         y = self.dnn.y
         y_ = self.dnn.output
 
-        cost = T.mean((y_ - y)**2)
+        cost = T.sum(y * T.log(y_) + (1-y) * T.log(1-y_))
         params = flatten(self.params)
         grads = T.grad(cost, params)
 
