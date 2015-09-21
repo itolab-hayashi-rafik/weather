@@ -8,6 +8,10 @@ import theano
 import theano.tensor as T
 
 import csv
+from PIL import Image
+
+# Earth Radius (unit: meter)
+R = 6371000
 
 class Generator(object):
     def __init__(self, w=10, h=10, d=1):
@@ -111,3 +115,78 @@ class RadarGenerator(Generator):
                 data.append(chunk[self.top:self.top+h])
 
         return numpy.asarray(data, dtype=theano.config.floatX) / 100.0
+
+class SatelliteGenerator(Generator):
+    def __init__(self, dir, w=10, h=10, left=0, top=0, meshsize=(45,30), basepos=(491400,124200), imgbasepos=(), imgbaselng=135, imgscale=1.0):
+        '''
+
+        :param dir:
+        :param w:
+        :param h:
+        :param left:
+        :param top:
+        :param meshsize: the size of each cell in the grid (unit: sec)
+        :param basepos: the lat long position of the northwest (unit: sec)
+        :param imgbasepos:
+        :param imgbaselng:
+        :param imgscale:
+        :param
+        :return:
+        '''
+        super(SatelliteGenerator, self).__init__(w, h, 1)
+        dir = os.path.join(os.path.dirname(__file__), dir)
+        self.dir = dir
+        self.left = left
+        self.top = top
+        self.meshsize = meshsize
+        self.basepos = basepos
+        self.imgbasepos = imgbasepos
+        self.imgbaselng = imgbaselng
+        self.imgscale = imgscale
+
+        cwd = os.getcwd()
+        os.chdir(dir)
+        self.files = glob.glob('*.csv')
+        self.files.sort()
+        os.chdir(cwd)
+
+        self.i = -1
+
+    def next(self):
+        super(SatelliteGenerator, self).next()
+
+        self.i = (self.i + 1) % len(self.files)
+        file = self.files[self.i]
+        filepath = os.path.join(self.dir, file)
+        img = Image.open(filepath)
+
+        def getval(lat, lng, d):
+            phi = math.radians(lat)
+            lmd = math.radians(lng - self.imgbaselng)
+            p = 2. * R * math.tan((math.pi/2. - phi) / 2.)
+            x = p * math.sin(lmd)
+            y = p * math.cos(lmd)
+
+            img_x = x - self.imgbasepos[0] # FIXME: wrong implementation,
+            img_y = y - self.imgbasepos[1] #        not tested yet.
+
+            (r,g,b) = img[img_x,img_y]
+            intensity = (r/255.+g/255.+g/255.)
+            return intensity
+
+        data = \
+            [
+                [
+                    [
+                        [
+                            getval(
+                                self.basepos[0]+self.left+self.meshsize[0]*i,
+                                self.basepos[1]+self.top+self.meshsize[1]*j,
+                                k
+                            )
+                        ] for i in xrange(self.w)
+                    ] for j in xrange(self.h)
+                ] for k in xrange(self.d)
+            ]
+
+        return data
