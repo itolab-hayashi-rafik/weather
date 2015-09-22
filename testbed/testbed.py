@@ -60,7 +60,7 @@ class TestBed(object):
         print('done')
 
         print('Building finetune function...'),
-        self.f_grad_shared, self.f_update, self.f_validate = self.model.build_finetune_function()
+        self.f_grad_shared, self.f_update, self.f_validate, self.f_test = self.model.build_finetune_function()
         print('done')
 
         print('Building predict function...'),

@@ -22,6 +22,10 @@ class Model(object):
     def build_prediction_function(self, *args, **kwargs):
         return
 
+    @abstractmethod
+    def build_test_function(self, *args, **kwargs):
+        return
+
 
 class BaseModel(Model):
     def __init__(self, numpy_rng, dnn, t_in=2, d=1, w=10, h=10, t_out=1):
@@ -82,10 +86,12 @@ class BaseModel(Model):
 
         f_validate = theano.function([self.dnn.x, self.dnn.mask, self.dnn.y], cost)
 
+        f_test = theano.function([self.dnn.x, self.dnn.mask, self.dnn.y], cost)
+
         f_grad_shared, f_update = optimizer(learning_rate, params, grads,
                                             self.dnn.x, self.dnn.mask, self.dnn.y, cost)
 
-        return (f_grad_shared, f_update, f_validate)
+        return (f_grad_shared, f_update, f_validate, f_test)
 
     def build_prediction_function(self):
         if self.dnn.is_rnn:
