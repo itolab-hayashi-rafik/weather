@@ -174,7 +174,7 @@ class TestBed(object):
 
                 if numpy.mod(uidx, validFreq) == 0:
                     #use_noise.set_value(0.) # TODO: implement dropout?
-                    valid_costs = self.validate(dataset, valid_idx, batch_size)
+                    valid_costs = self.pred_error(dataset, valid_idx, batch_size)
                     valid_cost = numpy.mean(valid_costs)
                     v_costs.append(valid_cost)
                     history_errs.append(valid_cost)
@@ -220,6 +220,7 @@ class TestBed(object):
         patience = 10 * n_train_batches  # look as this many examples regardless
 
         history_errs = []
+        bad_counter = 0
 
         # bunch of configs
         dispFreq = 1
@@ -299,8 +300,6 @@ class TestBed(object):
         return numpy.average(costs), numpy.average(v_costs), None
 
     def pred_error(self, dataset, idx, batch_size):
-        n_validate_batches = len(idx) / batch_size
-
         # Get new shuffled index for the training set.
         kf = self.get_minibatches_idx(idx, batch_size, shuffle=True)
 
@@ -312,7 +311,6 @@ class TestBed(object):
             x = self._make_input(dataset, valid_index)
 
             x, mask, y = self.model.prepare_data(x, y)
-
             y_ = self.f_predict(x, mask)
 
             cost = numpy.mean((y - y_)**2)
