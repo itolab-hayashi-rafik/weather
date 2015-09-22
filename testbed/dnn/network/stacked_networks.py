@@ -447,7 +447,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
                 new_states += layer_out
 
             # concatenate outputs of each ConvLSTM
-            y_ = T.concatenate(new_states[1::2], axis=0) # concatenate h_ outputs of all layers
+            y_ = T.concatenate(new_states[1::2], axis=1) # concatenate h_ outputs of all layers
             self.conv_layer.input = y_ # a bit hacky way... should be fixed
             y_ = self.conv_layer.output
 
