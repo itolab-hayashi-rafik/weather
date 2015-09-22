@@ -431,12 +431,12 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         n_timesteps = self.n_timesteps
 
         # set initial states of layers: flatten the given state list
-        outputs_info = [self.x[-1]]
-        outputs_info += flatten(self.initial_hidden_states)
+        outputs_info  = flatten(self.initial_hidden_states)
+        outputs_info += [self.x[-1]]
 
         # feed forward calculation
-        def step(y, *prev_states):
-            y_ = y
+        def step(*prev_states):
+            y_ = prev_states[-1]
 
             # forward propagation
             new_states = []
@@ -451,15 +451,14 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
             self.conv_layer.input = y_ # a bit hacky way... should be fixed
             y_ = self.conv_layer.output
 
-            # parameters to pass to next step are: input to the decoder at next time interval (which is
-            # the output of the decoder at this time interval), hidden states, and the output of the
-            # decoder at this time interval, so that the last parameter will be the output of the decoder
-            return [y_] + new_states + [y_]
+            # parameters to pass to next step are: hidden states and the output of the
+            # decoder at this time interval (the input of the decoder at next time interval)
+            return new_states + [y_]
 
         rval, updates = theano.scan(
             step,
             n_steps=n_timesteps,
-            outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            outputs_info=outputs_info,
             name="{0}_scan".format(self.name)
         )
         self.rval = rval
