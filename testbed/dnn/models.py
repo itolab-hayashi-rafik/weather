@@ -22,14 +22,12 @@ class EncoderDecoderConvLSTM(BaseModel):
         '''
         self.filter_shapes = filter_shapes
 
-        print('Building the model...'),
         dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
             n_timesteps=t_out
         )
-        print('done')
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
@@ -101,14 +99,12 @@ class EncoderDecoderLSTM(BaseModel):
         self.n_ins = d*h*w
         self.hidden_layers_sizes = hidden_layers_sizes
 
-        print('Building the model...'),
         dnn = network.EncoderDecoderLSTM(
             numpy_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
             n_timesteps=t_out
         )
-        print('done')
 
         super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
@@ -181,13 +177,11 @@ class StackedConvLSTM(BaseModel):
 
         assert t_out == 1
 
-        print('LSTMFullyConnected: building the model...'),
         dnn = network.StackedConvLSTM(
             numpy_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
         )
-        print('done')
 
         super(StackedConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
@@ -261,13 +255,11 @@ class StackedLSTM(BaseModel):
 
         assert t_out == 1
 
-        print('Building the model...'),
         dnn = network.StackedLSTM(
             numpy_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
         )
-        print('done')
 
         super(StackedLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
