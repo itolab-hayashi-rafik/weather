@@ -60,7 +60,7 @@ class TestBed(object):
         print('done')
 
         print('Building finetune function...'),
-        self.f_grad_shared, self.f_update, self.f_validate, self.f_test = self.model.build_finetune_function()
+        self.f_grad_shared, self.f_update = self.model.build_finetune_function()
         print('done')
 
         print('Building predict function...'),
@@ -269,7 +269,7 @@ class TestBed(object):
 
                 if numpy.mod(uidx, validFreq) == 0:
                     #use_noise.set_value(0.) # TODO: implement dropout?
-                    valid_costs = self.validate(dataset, valid_idx, batch_size)
+                    valid_costs = self.pred_error(dataset, valid_idx, batch_size)
                     valid_cost = numpy.mean(valid_costs)
                     v_costs.append(valid_cost)
                     history_errs.append(valid_cost)
@@ -298,11 +298,11 @@ class TestBed(object):
 
         return numpy.average(costs), numpy.average(v_costs), None
 
-    def validate(self, dataset, valid_idx, batch_size):
-        n_validate_batches = len(valid_idx) / batch_size
+    def pred_error(self, dataset, idx, batch_size):
+        n_validate_batches = len(idx) / batch_size
 
         # Get new shuffled index for the training set.
-        kf = self.get_minibatches_idx(valid_idx, batch_size, shuffle=True)
+        kf = self.get_minibatches_idx(idx, batch_size, shuffle=True)
 
         # iteratively validate each minibatch
         costs = []
@@ -313,7 +313,9 @@ class TestBed(object):
 
             x, mask, y = self.model.prepare_data(x, y)
 
-            cost = self.f_validate(x, mask, y)
+            y_ = self.f_predict(x, mask)
+
+            cost = numpy.mean((y - y_)**2)
             costs.append(cost)
 
         return costs
