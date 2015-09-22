@@ -94,7 +94,9 @@ class RadarGenerator(Generator):
     def next(self):
         super(RadarGenerator, self).next()
 
-        self.i = (self.i + 1) % len(self.files)
+        self.i = self.i + 1
+        if self.i >= len(self.files):
+            raise StopIteration
 
         data = []
 
@@ -162,7 +164,10 @@ class SatelliteGenerator(Generator):
     def next(self):
         super(SatelliteGenerator, self).next()
 
-        self.i = (self.i + 1) % len(self.files)
+        self.i = self.i + 1
+        if self.i >= len(self.files):
+            raise StopIteration
+
         file = self.files[self.i]
         filepath = os.path.join(self.dir, file)
         img = Image.open(filepath)
@@ -197,3 +202,75 @@ class SatelliteGenerator(Generator):
             ]
 
         return data
+
+
+def gen_dataset(t_in=5, w=10, h=10, offset=(0,0,0), t_out=15):
+    '''
+    generate dataset using RadarGenerator, SatelliteGenerator
+    :return:
+    '''
+
+    DATA_WIDTH = 120  # width of the original csv data (radar)
+    DATA_HEIGHT = 120 # height of the original csv data (radar)
+
+    input_width = DATA_WIDTH-offset[0]
+    input_height= DATA_HEIGHT-offset[1]
+
+    # calculate patchsize
+    patchsize = (int(input_width / w), int(input_height / h))
+    n_patches = numpy.prod(patchsize)
+    step = t_in + t_out
+
+    # initialize generators
+    g_radar = RadarGenerator("../data/radar", w=input_width, h=input_height, offset=offset)
+
+    # initialize dataset
+    data_x = []
+    data_y = []
+
+    # a function to append cropped data to lists
+    def append_patches(lists, data):
+        assert len(lists) == n_patches
+
+        k = 0
+        for j in xrange(patchsize[1]):
+            for i in xrange(patchsize[0]):
+                bound_x = (i*w, (i+1)*w)
+                bound_y = (i*h, (i+1)*h)
+                patch = data[:, bound_y[0]:bound_y[1], bound_x[0]:bound_x[1]]
+                lists[k].append(patch)
+                k += 1
+
+    print('Begin generating dataset\n')
+
+    # generate data
+    for i,radar in enumerate(g_radar):
+        print('[{0}]'.format(i)),
+
+        if i % step == 0:
+            inputs = [[] for _ in xrange(n_patches)]
+            outputs = [[] for _ in xrange(n_patches)]
+
+        if len(inputs[0]) < t_in:
+            append_patches(inputs, radar)
+        elif len(outputs[0]) < t_out:
+            append_patches(outputs, radar)
+
+        if i % step == step-1:
+            for input,output in zip(inputs,outputs):
+                data_x.append(input)
+                data_y.append(output)
+            print(' --> appended to dataset, {0} data in total'.format(len(data_x)))
+
+    print('\nend generating dataset')
+    print('{0} data in total'.format(len(data_x)))
+
+    return numpy.asarray(data_x, dtype=theano.config.floatX), numpy.asarray(data_y, dtype=theano.config.floatX)
+
+
+if __name__ == '__main__':
+    print('generating dataset\n')
+    outfile = 'dataset.npz'
+    dataset = gen_dataset()
+    numpy.savez(outfile, dataset=dataset)
+    print('\ndone, output file: {0}'.format(outfile))
