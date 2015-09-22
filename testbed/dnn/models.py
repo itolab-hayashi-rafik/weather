@@ -32,22 +32,6 @@ class EncoderDecoderConvLSTM(BaseModel):
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
-    def _make_input(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する入力ベクトルを ndata から作る
-        :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
-        :return:
-        '''
-        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.d, self.h, self.w))
-
-    def _make_output(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する出力ベクトルをつくる
-        :param data:
-        :return:
-        '''
-        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.d, self.h, self.w))
-
     def prepare_data(self, xs, ys, maxlen=None):
         '''
         prepare data for inserting to RNN or LSTM
@@ -120,22 +104,6 @@ class EncoderDecoderLSTM(BaseModel):
 
         super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
-    def _make_input(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する入力ベクトルを ndata から作る
-        :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
-        :return:
-        '''
-        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
-
-    def _make_output(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する出力ベクトルをつくる
-        :param data:
-        :return:
-        '''
-        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
-
     def prepare_data(self, xs, ys, maxlen=None):
         '''
         prepare data for inserting to RNN or LSTM
@@ -168,14 +136,14 @@ class EncoderDecoderLSTM(BaseModel):
 
         x = numpy.zeros((maxlen, n_samples, self.n_ins), dtype=theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
-        for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :] = s
+        for idx, xi in enumerate(xs):
+            x[:lengths[idx], idx, :] = xi.reshape(xi.shape[0], self.n_ins)
             x_mask[:lengths[idx], idx] = 1.
 
         if ys is not None:
             y = numpy.zeros((self.t_out, n_samples, self.n_ins), dtype=theano.config.floatX)
             for idx, yi in enumerate(ys):
-                y[:, idx, :] = yi
+                y[:, idx, :] = yi.reshape(yi.shape[0], self.n_ins)
         else:
             y = None
 
@@ -207,22 +175,6 @@ class StackedConvLSTM(BaseModel):
         print('done')
 
         super(StackedConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
-
-    def _make_input(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する入力ベクトルを ndata から作る
-        :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
-        :return:
-        '''
-        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.d, self.h, self.w))
-
-    def _make_output(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する出力ベクトルをつくる
-        :param data:
-        :return:
-        '''
-        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.d, self.h, self.w))
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -256,8 +208,8 @@ class StackedConvLSTM(BaseModel):
 
         x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples, self.d), dtype=theano.config.floatX)
-        for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :, :, :] = s
+        for idx, xi in enumerate(xs):
+            x[:lengths[idx], idx, :, :, :] = xi
             x_mask[:lengths[idx], idx, :] = 1.
 
         if ys is not None:
@@ -298,22 +250,6 @@ class StackedLSTM(BaseModel):
 
         super(StackedLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
-    def _make_input(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する入力ベクトルを ndata から作る
-        :param ndata: an array of ndarray of (d-by-h-by-w) dimention, whose size is n
-        :return:
-        '''
-        return dataset[[range(n,n+self.t_in) for n in idx], :].reshape((len(idx), self.t_in, self.n_ins))
-
-    def _make_output(self, dataset, idx):
-        '''
-        (i,j) の SdA に対する出力ベクトルをつくる
-        :param data:
-        :return:
-        '''
-        return dataset[[range(n+self.t_in,n+self.t_in+self.t_out) for n in idx], :].reshape((len(idx), self.t_out, self.n_outs))
-
     def prepare_data(self, xs, ys, maxlen=None):
         '''
         prepare data for inserting to RNN or LSTM
@@ -346,14 +282,14 @@ class StackedLSTM(BaseModel):
 
         x = numpy.zeros((maxlen, n_samples, self.n_ins), dtype=theano.config.floatX)
         x_mask = numpy.zeros((maxlen, n_samples), dtype=theano.config.floatX)
-        for idx, s in enumerate(xs):
-            x[:lengths[idx], idx, :] = s
+        for idx, xi in enumerate(xs):
+            x[:lengths[idx], idx, :] = xi.reshape(xi.shape[0], self.n_ins)
             x_mask[:lengths[idx], idx] = 1.
 
         if ys is not None:
             y = numpy.zeros((self.t_out, n_samples, self.n_ins), dtype=theano.config.floatX)
             for idx, yi in enumerate(ys):
-                y[:, idx, :] = yi
+                y[:, idx, :] = yi.reshape(yi.shape[0], self.n_ins)
         else:
             y = None
 
