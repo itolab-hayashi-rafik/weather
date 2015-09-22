@@ -20,6 +20,7 @@ class EncoderDecoderConvLSTM(BaseModel):
         :param filter_shapes:
         :return:
         '''
+        self.filter_shapes = filter_shapes
 
         print('Building the model...'),
         dnn = network.EncoderDecoderConvLSTM(
@@ -31,6 +32,12 @@ class EncoderDecoderConvLSTM(BaseModel):
         print('done')
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+
+    @property
+    def params(self):
+        params = super(EncoderDecoderConvLSTM, self).params
+        params['filter_shapes'] = self.filter_shapes
+        return params
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -92,6 +99,7 @@ class EncoderDecoderLSTM(BaseModel):
         :return:
         '''
         self.n_ins = d*h*w
+        self.hidden_layers_sizes = hidden_layers_sizes
 
         print('Building the model...'),
         dnn = network.EncoderDecoderLSTM(
@@ -103,6 +111,12 @@ class EncoderDecoderLSTM(BaseModel):
         print('done')
 
         super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+
+    @property
+    def params(self):
+        params = super(EncoderDecoderLSTM, self).params
+        params['hidden_layers_sizes'] = self.hidden_layers_sizes
+        return params
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -163,6 +177,7 @@ class StackedConvLSTM(BaseModel):
         :param filter_shapes:
         :return:
         '''
+        self.filter_shapes = filter_shapes
 
         assert t_out == 1
 
@@ -175,6 +190,12 @@ class StackedConvLSTM(BaseModel):
         print('done')
 
         super(StackedConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+
+    @property
+    def params(self):
+        params = super(StackedConvLSTM, self).params
+        params['filter_shapes'] = self.filter_shapes
+        return params
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -236,7 +257,7 @@ class StackedLSTM(BaseModel):
         :return:
         '''
         self.n_ins = d*h*w
-        self.n_outs= d*h*w
+        self.hidden_layers_sizes = hidden_layers_sizes
 
         assert t_out == 1
 
@@ -249,6 +270,12 @@ class StackedLSTM(BaseModel):
         print('done')
 
         super(StackedLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+
+    @property
+    def params(self):
+        params = super(StackedLSTM, self).params
+        params['hidden_layers_sizes'] = self.hidden_layers_sizes
+        return params
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
