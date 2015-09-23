@@ -253,6 +253,8 @@ if __name__ == '__main__':
         filter_shapes = [(128,1,9,9),(128,128,9,9)]
     elif exp == 5:
         filter_shapes = [(128,1,9,9),(64,128,9,9),(64,64,9,9)]
+    elif exp == 6:
+        filter_shapes = [(32,1,5,5)]
     else:
         raise NotImplementedError
 
