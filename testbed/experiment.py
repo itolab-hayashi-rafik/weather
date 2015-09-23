@@ -60,6 +60,11 @@ def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset):
     valid = load(valid_dataset)
     test = load(test_dataset)
 
+    # use only one part of the dataset to avoid MemoryError: alloc failed
+    train = (train[0][:1000], train[1][:1000])
+    valid = (valid[0][:200], valid[1][:200])
+    test = (test[0][:300], test[1][:300])
+
     return (train, valid, test)
 
 def exp_moving_mnist(
