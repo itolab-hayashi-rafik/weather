@@ -322,30 +322,30 @@ class StackedConvLSTM(StackedNetwork):
         n_timesteps = self.x.shape[0]
         n_samples = self.x.shape[1]
 
-        # set initial states of layers
-        outputs_info = []
-        for layer in self.layers:
-            outputs_info += layer.outputs_info(n_samples)
-
-        # feed forward calculation
-        def step(m, x, *prev_states):
-            x_ = x
-            new_states = []
-            for i, layer in enumerate(self.layers):
-                c_, h_ = prev_states[2*i], prev_states[2*i+1]
-                layer_out = layer.step(m, x_, c_, h_)
-                _, x_ = layer_out # hidden, c
-                new_states += layer_out
-            return new_states
-
-        rval, updates = theano.scan(
-            step,
-            sequences=[self.mask, self.x],
-            n_steps=n_timesteps,
-            outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
-            name="{0}_scan".format(self.name)
-        )
-        self.rval = rval
+        # # set initial states of layers
+        # outputs_info = []
+        # for layer in self.layers:
+        #     outputs_info += layer.outputs_info(n_samples)
+        #
+        # # feed forward calculation
+        # def step(m, x, *prev_states):
+        #     x_ = x
+        #     new_states = []
+        #     for i, layer in enumerate(self.layers):
+        #         c_, h_ = prev_states[2*i], prev_states[2*i+1]
+        #         layer_out = layer.step(m, x_, c_, h_)
+        #         _, x_ = layer_out # hidden, c
+        #         new_states += layer_out
+        #     return new_states
+        #
+        # rval, updates = theano.scan(
+        #     step,
+        #     sequences=[self.mask, self.x],
+        #     n_steps=n_timesteps,
+        #     outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+        #     name="{0}_scan".format(self.name)
+        # )
+        # self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
         #assert(len(rval) == 3*self.n_layers)
@@ -353,6 +353,26 @@ class StackedConvLSTM(StackedNetwork):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
+
+        rvals = []
+        for i,layer in enumerate(self.layers):
+            if i == 0:
+                seqs = [self.mask, self.x]
+            else:
+                seqs = [self.mask, rvals[-1]]
+
+            def step(m, x_, c_, h_):
+                layer_out = layer.step(m, x_, c_, h_)
+                return layer_out
+
+            rvals.append(theano.scan(
+                step,
+                sequences=seqs,
+                n_steps=n_timesteps,
+                outputs_info=layer.outputs_info,
+                name="{0}_scan_{1}".format(self.name, i)
+            ))
+        self.rval = rvals[-1]
 
     @property
     def output(self):
@@ -430,38 +450,38 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
     def setup_scan(self):
         n_timesteps = self.n_timesteps
 
-        # set initial states of layers: flatten the given state list
-        outputs_info  = flatten(self.initial_hidden_states)
-        outputs_info += [self.x[-1]]
-
-        # feed forward calculation
-        def step(*prev_states):
-            y_ = prev_states[-1]
-
-            # forward propagation
-            new_states = []
-            for i, layer in enumerate(self.layers):
-                c_, h_ = prev_states[2*i], prev_states[2*i+1]
-                layer_out = layer.step(1., y_, c_, h_)
-                _, y_ = layer_out # c, h
-                new_states += layer_out
-
-            # concatenate outputs of each ConvLSTM
-            y_ = T.concatenate(new_states[1::2], axis=1) # concatenate h_ outputs of all layers
-            self.conv_layer.input = y_ # a bit hacky way... should be fixed
-            y_ = self.conv_layer.output
-
-            # parameters to pass to next step are: hidden states and the output of the
-            # decoder at this time interval (the input of the decoder at next time interval)
-            return new_states + [y_]
-
-        rval, updates = theano.scan(
-            step,
-            n_steps=n_timesteps,
-            outputs_info=outputs_info,
-            name="{0}_scan".format(self.name)
-        )
-        self.rval = rval
+        # # set initial states of layers: flatten the given state list
+        # outputs_info  = flatten(self.initial_hidden_states)
+        # outputs_info += [self.x[-1]]
+        #
+        # # feed forward calculation
+        # def step(*prev_states):
+        #     y_ = prev_states[-1]
+        #
+        #     # forward propagation
+        #     new_states = []
+        #     for i, layer in enumerate(self.layers):
+        #         c_, h_ = prev_states[2*i], prev_states[2*i+1]
+        #         layer_out = layer.step(1., y_, c_, h_)
+        #         _, y_ = layer_out # c, h
+        #         new_states += layer_out
+        #
+        #     # concatenate outputs of each ConvLSTM
+        #     y_ = T.concatenate(new_states[1::2], axis=1) # concatenate h_ outputs of all layers
+        #     self.conv_layer.input = y_ # a bit hacky way... should be fixed
+        #     y_ = self.conv_layer.output
+        #
+        #     # parameters to pass to next step are: hidden states and the output of the
+        #     # decoder at this time interval (the input of the decoder at next time interval)
+        #     return new_states + [y_]
+        #
+        # rval, updates = theano.scan(
+        #     step,
+        #     n_steps=n_timesteps,
+        #     outputs_info=outputs_info,
+        #     name="{0}_scan".format(self.name)
+        # )
+        # self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
         #assert(len(rval) == 3*self.n_layers)
@@ -469,4 +489,41 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
+
+        rvals = []
+        for i,layer in enumerate(self.layers):
+            if i == 0:
+                seqs = [self.mask, self.x]
+            else:
+                seqs = [self.mask, rvals[-1]]
+
+            def step(m, x_, c_, h_):
+                layer_out = layer.step(m, x_, c_, h_)
+                return layer_out
+
+            rvals.append(theano.scan(
+                step,
+                sequences=seqs,
+                n_steps=n_timesteps,
+                outputs_info=self.initial_hidden_states[i],
+                name="{0}_scan_{1}".format(self.name, i)
+            ))
+
+        # concatenate outputs of each ConvLSTM
+        hs = T.concatenate([rval[1] for rval in rvals], axis=2) # concatenate h_ outputs of all layers
+
+        def step(m, x_, y_):
+            self.conv_layer.input = x_
+            y_ = self.conv_layer.output
+            return y_
+
+        rvals.append(theano.scan(
+            step,
+            sequences=[self.mask, hs],
+            n_steps=n_timesteps,
+            outputs_info=[self.x[-1]],
+            name="{0}_scan_conv".format(self.name)
+        ))
+
+        self.rval = rvals[-1]
 
