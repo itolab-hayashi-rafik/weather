@@ -35,9 +35,9 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         self.train_set_x, self.train_set_y = self._shared(train_set)
         self.valid_set_x, self.valid_set_y = self._shared(valid_set)
         self.test_set_x, self.test_set_y = self._shared(test_set)
-        self.train_set_mask = numpy.ones((len(train_set[0]), t_in, d), dtype=theano.config.floatX)
-        self.valid_set_mask = numpy.ones((len(valid_set[0]), t_in, d), dtype=theano.config.floatX)
-        self.test_set_mask = numpy.ones((len(test_set[0]), t_in, d), dtype=theano.config.floatX)
+        self.train_set_mask = theano.shared(numpy.ones((len(train_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
+        self.valid_set_mask = theano.shared(numpy.ones((len(valid_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
+        self.test_set_mask = theano.shared(numpy.ones((len(test_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
         print('done.')
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
