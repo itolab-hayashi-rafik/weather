@@ -121,6 +121,16 @@ def exp_moving_mnist(
             # iteration number
             iter = (epoch - 1) * n_train_batches + minibatch_index
 
+            print(
+                'epoch %i, minibatch %i/%i, train error %f %%' %
+                (
+                    epoch,
+                    minibatch_index + 1,
+                    n_train_batches,
+                    minibatch_avg_cost * 100.
+                )
+            )
+
             if (iter + 1) % validation_frequency == 0:
                 # compute zero-one loss on validation set
                 validation_losses = [f_valid(i)
