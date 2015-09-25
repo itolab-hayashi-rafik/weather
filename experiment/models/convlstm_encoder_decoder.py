@@ -23,7 +23,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
             input=self.x.dimshuffle(1,0,2,3,4),
-            mask=self.mask,
+            mask=self.mask.dimshuffle(1,0,2),
             output=self.y,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
@@ -35,6 +35,9 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         self.train_set_x, self.train_set_y = self._shared(train_set)
         self.valid_set_x, self.valid_set_y = self._shared(valid_set)
         self.test_set_x, self.test_set_y = self._shared(test_set)
+        self.train_set_mask = numpy.ones((len(train_set[0]), t_in, d), dtype=theano.config.floatX)
+        self.valid_set_mask = numpy.ones((len(valid_set[0]), t_in, d), dtype=theano.config.floatX)
+        self.test_set_mask = numpy.ones((len(test_set[0]), t_in, d), dtype=theano.config.floatX)
         print('done.')
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
@@ -63,14 +66,15 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         grads = T.grad(cost, params)
 
         f_grad_shared, f_update = optimizer(learning_rate, params, grads,
-                                            self.x, self.y,
-                                            self.train_set_x, self.train_set_y,
+                                            self.x, self.mask, self.y,
+                                            self.train_set_x, self.train_set_mask, self.train_set_y,
                                             index, batch_size,
                                             cost)
 
         f_valid = theano.function([index], cost,
                                   givens={
                                       self.x: self.valid_set_x[index * valid_batch_size: (index + 1) * valid_batch_size],
+                                      self.mask: self.valid_set_mask[index * valid_batch_size: (index + 1) * valid_batch_size],
                                       self.y: self.valid_set_y[index * valid_batch_size: (index + 1) * valid_batch_size]
                                   },
                                   name='f_valid')
@@ -78,6 +82,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         f_test = theano.function([index], cost,
                                 givens={
                                     self.x: self.test_set_x[index * valid_batch_size: (index + 1) * valid_batch_size],
+                                    self.mask: self.test_set_mask[index * valid_batch_size: (index + 1) * valid_batch_size],
                                     self.y: self.test_set_y[index * valid_batch_size: (index + 1) * valid_batch_size]
                                 },
                                 name='f_test')

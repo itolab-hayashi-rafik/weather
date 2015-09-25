@@ -5,7 +5,7 @@ import theano.tensor as tensor
 def numpy_floatX(data):
     return numpy.asarray(data, dtype=theano.config.floatX)
 
-def sgd(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost):
+def sgd(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, index, batch_size, cost):
     """ Stochastic Gradient Descent
 
     :note: A more complicated version of sgd then needed.  This is
@@ -22,6 +22,7 @@ def sgd(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost):
     f_grad_shared = theano.function([index], cost, updates=gsup,
                                     givens={
                                         x: shared_x[index * batch_size: (index + 1) * batch_size],
+                                        mask: shared_mask[index * batch_size: (index + 1) * batch_size],
                                         y: shared_y[index * batch_size: (index + 1) * batch_size]
                                     },
                                     name='sgd_f_grad_shared')
@@ -36,7 +37,7 @@ def sgd(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost):
     return f_grad_shared, f_update
 
 
-def adadelta(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost):
+def adadelta(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, index, batch_size, cost):
     """
     An adaptive learning rate optimizer
 
@@ -76,6 +77,7 @@ def adadelta(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cos
     f_grad_shared = theano.function([index], cost, updates=zgup + rg2up,
                                     givens={
                                                x: shared_x[index * batch_size: (index + 1) * batch_size],
+                                               mask: shared_mask[index * batch_size: (index + 1) * batch_size],
                                                y: shared_y[index * batch_size: (index + 1) * batch_size]
                                     },
                                     name='adadelta_f_grad_shared')
@@ -95,7 +97,7 @@ def adadelta(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cos
     return f_grad_shared, f_update
 
 
-def rmsprop(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost):
+def rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, index, batch_size, cost):
     """
     A variant of  SGD that scales the step size by running average of the
     recent step norms.
@@ -139,6 +141,7 @@ def rmsprop(lr, params, grads, x, y, shared_x, shared_y, index, batch_size, cost
                                     updates=zgup + rgup + rg2up,
                                     givens={
                                         x: shared_x[index * batch_size: (index + 1) * batch_size],
+                                        mask: shared_mask[index * batch_size: (index + 1) * batch_size],
                                         y: shared_y[index * batch_size: (index + 1) * batch_size]
                                     },
                                     name='rmsprop_f_grad_shared')
