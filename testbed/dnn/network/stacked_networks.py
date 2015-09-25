@@ -355,38 +355,41 @@ class StackedConvLSTM(StackedNetwork):
         # ...
 
         rvals = []
+        updates = []
         for i,layer in enumerate(self.layers):
             if i == 0:
                 seqs = [self.mask, self.x]
             else:
-                seqs = [self.mask, rvals[-1]]
+                seqs = [self.mask, rvals[-1][-1]]
 
             def step(m, x_, c_, h_):
                 layer_out = layer.step(m, x_, c_, h_)
                 return layer_out
 
-            rvals.append(theano.scan(
+            rval, update = theano.scan(
                 step,
                 sequences=seqs,
                 n_steps=n_timesteps,
-                outputs_info=layer.outputs_info,
+                outputs_info=layer.outputs_info(n_samples),
                 name="{0}_scan_{1}".format(self.name, i)
-            ))
-        self.rval = rvals[-1]
+            )
+            rvals.append(rval)
+            updates.append(update)
+        self.rvals = rvals
 
     @property
     def output(self):
         '''
         :return: the output of the last layer at the last time period
         '''
-        return self.rval[-1][-1]
+        return self.rvals[-1][-1][-1]
 
     @property
     def outputs(self):
         '''
         :return: the outputs of the last layer from time period 0 to T
         '''
-        return self.rval[-1]
+        return self.rvals[-1][-1]
 
 
 class StackedConvLSTMEncoder(StackedConvLSTM):
@@ -399,10 +402,16 @@ class StackedConvLSTMEncoder(StackedConvLSTM):
 
     @property
     def last_states(self):
+        # return [
+        #     [
+        #         self.rval[2*i][-1],     # ConvLSTM[i].c[T]
+        #         self.rval[2*i+1][-1],   # ConvLSTM[i].h[T]
+        #     ] for i in xrange(self.n_layers)
+        # ]
         return [
             [
-                self.rval[2*i][-1],     # ConvLSTM[i].c[T]
-                self.rval[2*i+1][-1],   # ConvLSTM[i].h[T]
+                self.rvals[i][0][-1],   # ConvLSTM[i].c[T]
+                self.rvals[i][1][-1],   # ConvLSTM[i].h[T]
             ] for i in xrange(self.n_layers)
         ]
 
@@ -491,23 +500,26 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # ...
 
         rvals = []
+        updates = []
         for i,layer in enumerate(self.layers):
             if i == 0:
                 seqs = [self.mask, self.x]
             else:
-                seqs = [self.mask, rvals[-1]]
+                seqs = [self.mask, rvals[-1][-1]]
 
             def step(m, x_, c_, h_):
                 layer_out = layer.step(m, x_, c_, h_)
                 return layer_out
 
-            rvals.append(theano.scan(
+            rval, update = theano.scan(
                 step,
                 sequences=seqs,
                 n_steps=n_timesteps,
                 outputs_info=self.initial_hidden_states[i],
                 name="{0}_scan_{1}".format(self.name, i)
-            ))
+            )
+            rvals.append(rval)
+            updates.append(update)
 
         # concatenate outputs of each ConvLSTM
         hs = T.concatenate([rval[1] for rval in rvals], axis=2) # concatenate h_ outputs of all layers
@@ -517,13 +529,15 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
             y_ = self.conv_layer.output
             return y_
 
-        rvals.append(theano.scan(
+        rval, update = theano.scan(
             step,
             sequences=[self.mask, hs],
             n_steps=n_timesteps,
             outputs_info=[self.x[-1]],
             name="{0}_scan_conv".format(self.name)
-        ))
+        )
+        rvals.append(rval)
+        updates.append(update)
 
-        self.rval = rvals[-1]
+        self.rvals = rvals
 

@@ -74,7 +74,7 @@ class BaseModel(Model):
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
         y = self.dnn.y
-        y_ = self.dnn.output
+        y_ = self.dnn.outputs if self.dnn.is_rnn else self.dnn.output
 
         cost = T.mean((y - y_)**2)
         params = flatten(self.dnn.params)
