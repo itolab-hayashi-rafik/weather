@@ -7,37 +7,15 @@ sys.path.append('/usr/local/lib/python2.7/site-packages')
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import datetime
-
+import timeit
 import numpy
 import theano
 
-from models.convlstm_encoder_decoder import ConvLSTMEncoderDecoder
+from models.convlstm_encoder_decoder import EncoderDecoderConvLSTM
 from testbed.utils import ndarray
 
 def unzip(params):
     return params # FIXME: need deepcopy
-
-def get_minibatches_idx(n, minibatch_size, shuffle=False):
-    """
-    Used to shuffle the dataset at each iteration.
-    """
-    idx_list = numpy.arange(n, dtype="int32")
-
-    if shuffle:
-        numpy.random.shuffle(idx_list)
-
-    minibatches = []
-    minibatch_start = 0
-    for i in range(n // minibatch_size):
-        minibatches.append(idx_list[minibatch_start:
-        minibatch_start + minibatch_size])
-        minibatch_start += minibatch_size
-
-    if (minibatch_start != n):
-        # Make a minibatch out of what is left
-        minibatches.append(idx_list[minibatch_start:])
-
-    return zip(range(len(minibatches)), minibatches)
 
 def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset):
     '''
@@ -73,12 +51,12 @@ def exp_moving_mnist(
         test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
-        patience=10,  # Number of epoch to wait before early stop if no progress
+        patience=5000,  # Number of epoch to wait before early stop if no progress
+        patience_increase = 2, # wait this much longer when a new best is found
         max_epochs=5000,  # The maximum number of epoch to run
-        validFreq=None,  # Compute the validation error after this number of update.
-        saveFreq=None,  # Save the parameters after every saveFreq updates
         batch_size=16,  # The batch size during training.
         valid_batch_size=64,  # The batch size used for validation/test set.
+        learning_rate=1e-3
 ):
     '''
     make experiment on Moving MNIST dataset
@@ -91,8 +69,14 @@ def exp_moving_mnist(
     '''
 
     # load dataset
+    print('loading dataset...'),
     datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset)
     train_data, valid_data, test_data = datasets
+    print('done')
+
+    print("{0} train examples".format((len(train_data[0]))))
+    print("{0} valid examples".format(len(valid_data[0])))
+    print("{0} test examples".format(len(test_data[0])))
 
     # check if the output directory exists and make directory if necessary
     outdir = os.path.dirname(saveto)
@@ -103,135 +87,103 @@ def exp_moving_mnist(
     d, h, w = train_data[0].shape[2], train_data[0].shape[3], train_data[0].shape[4]
     t_in, t_out = train_data[0].shape[1], train_data[1].shape[1]
 
+    n_train_batches = len(train_data[0]) / batch_size
+    n_valid_batches = len(valid_data[0]) / valid_batch_size
+    n_test_batches = len(test_data[0]) / valid_batch_size
+
     # build model
+    print('building model...'),
     numpy_rng = numpy.random.RandomState(89677)
-    model = ConvLSTMEncoderDecoder(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
-    f_grad_shared, f_update = model.build_finetune_function()
-    f_predict = model.build_prediction_function()
+    model = EncoderDecoderConvLSTM(numpy_rng, datasets, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+    f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
+    print('done')
 
-    kf_train = get_minibatches_idx(len(train_data[0]), batch_size)
-    kf_valid = get_minibatches_idx(len(valid_data[0]), valid_batch_size)
-    kf_test = get_minibatches_idx(len(test_data[0]), valid_batch_size)
+    ###############
+    # TRAIN MODEL #
+    ###############
+    print '... training the model'
+    # early-stopping parameters
+    improvement_threshold = 0.995  # a relative improvement of this much is considered significant
+    validation_frequency = min(n_train_batches, patience / 2)
 
-    print("{0} train examples".format((len(train_data[0]))))
-    print("{0} valid examples".format(len(valid_data[0])))
-    print("{0} test examples".format(len(test_data[0])))
+    best_validation_loss = numpy.inf
+    test_score = 0.
+    start_time = timeit.default_timer()
 
-    # bunch of configs
-    dispFreq = 1
-    if validFreq is None:
-        validFreq = len(train_data[0]) / batch_size
-    if saveFreq is None:
-        saveFreq = len(train_data[0]) / batch_size
+    done_looping = False
+    epoch = 0
+    while (epoch < max_epochs) and (not done_looping):
+        epoch = epoch + 1
+        for minibatch_index in xrange(n_train_batches):
 
-    def pred_error(data, iterator):
-        """
-        Just compute the error
-        """
-        valid_err = 0
-        for _, valid_index in iterator:
-            x, mask, y = model.prepare_data([data[0][t] for t in valid_index],
-                                            numpy.array(data[1])[valid_index],
-                                            maxlen=None)
-            y_ = f_predict(x, mask)
-            err = numpy.mean((y - y_)**2)
-            valid_err += err
-        valid_err = 1. - numpy.asarray(valid_err, dtype=theano.config.floatX) / len(data[0])
+            minibatch_avg_cost = f_grad_shared(minibatch_index)
+            f_update(learning_rate)
+            # iteration number
+            iter = (epoch - 1) * n_train_batches + minibatch_index
 
-        return valid_err
+            if (iter + 1) % validation_frequency == 0:
+                # compute zero-one loss on validation set
+                validation_losses = [f_valid(i)
+                                     for i in xrange(n_valid_batches)]
+                this_validation_loss = numpy.mean(validation_losses)
 
-    def train(learning_rate, max_epochs):
-        # training phase
-        history_errs = []
-        best_p = None
-        bad_counter = 0
+                print(
+                    'epoch %i, minibatch %i/%i, validation error %f %%' %
+                    (
+                        epoch,
+                        minibatch_index + 1,
+                        n_train_batches,
+                        this_validation_loss * 100.
+                    )
+                )
 
-        uidx = 0  # the number of update done
-        estop = False  # early stop
-        costs = []
-        for eidx in xrange(max_epochs):
-            n_samples = 0
+                # if we got the best validation score until now
+                if this_validation_loss < best_validation_loss:
+                    #improve patience if loss improvement is good enough
+                    if this_validation_loss < best_validation_loss * \
+                            improvement_threshold:
+                        patience = max(patience, iter * patience_increase)
 
-            # Get new shuffled index for the training set.
-            kf = get_minibatches_idx(len(train_data[0]), batch_size, shuffle=True)
+                    best_validation_loss = this_validation_loss
+                    # test it on the test set
 
-            avg_cost = 0
-            for bidx, train_index in kf:
-                uidx += 1
-                #use_noise.set_value(1.) # TODO: implement dropout?
+                    test_losses = [f_test(i)
+                                   for i in xrange(n_test_batches)]
+                    test_score = numpy.mean(test_losses)
 
-                # Select the random examples for this minibatch
-                y = [train_data[1][t] for t in train_index]
-                x = [train_data[0][t] for t in train_index]
+                    print(
+                        (
+                            '     epoch %i, minibatch %i/%i, test error of'
+                            ' best model %f %%'
+                        ) %
+                        (
+                            epoch,
+                            minibatch_index + 1,
+                            n_train_batches,
+                            test_score * 100.
+                        )
+                    )
 
-                # Get the data in numpy.ndarray format
-                # This swap the axis!
-                # Return something of shape (minibatch maxlen, n samples)
-                x, mask, y = model.prepare_data(x, y)
-                n_samples += x.shape[1]
+                    # save the best model
+                    numpy.savez(saveto, **model.params)
 
-                cost = f_grad_shared(x, mask, y)
-                f_update(learning_rate)
-
-                avg_cost += cost / len(kf)
-
-                if numpy.isnan(cost) or numpy.isinf(cost):
-                    print('NaN detected, cost={0}'.format(cost))
-                    raise Exception
-
-                if numpy.mod(uidx, dispFreq) == 0:
-                    print('Epoch {0}, Update {1}, Cost: {2}'.format(eidx, uidx, cost))
-                    pass
-
-                if saveto and numpy.mod(uidx, saveFreq) == 0:
-                    print('Saving...'),
-
-                    if best_p is not None:
-                        params = best_p
-                    else:
-                        params = unzip(model.params)
-                    numpy.savez(saveto, history_errs=history_errs, **params)
-                    # pkl.dump(model_options, open('%s.pkl' % saveto, 'wb'), -1)
-                    print('Done')
-
-                if numpy.mod(uidx, validFreq) == 0:
-                    #use_noise.set_value(0.) # TODO: implement dropout?
-                    train_err = pred_error(train_data, kf)
-                    valid_err = pred_error(valid_data, kf_valid)
-                    test_err = pred_error(test_data, kf_test)
-
-                    history_errs.append([valid_err, test_err])
-
-                    if (uidx == 0 or
-                                valid_err <= numpy.array(history_errs).min()):
-                        best_p = model.params
-                        bad_counter = 0
-
-                    print(" (validtion) Train: {0}, Valid: {1}, Test: {2}".format(train_err, valid_err, test_err))
-
-                    if (len(history_errs) > patience and
-                                valid_err >= numpy.array(history_errs)[:-patience].min()):
-                        bad_counter += 1
-                        if bad_counter > patience:
-                            print('Early Stop!')
-                            estop = True
-                            break
-
-                costs.append(avg_cost)
-
-            print("Epoch {0}/{1}: Seen {2} samples".format(eidx+1, max_epochs, n_samples))
-
-            if estop:
+            if patience <= iter:
+                done_looping = True
                 break
 
-        train_err = pred_error(train_data, kf_train)
-        valid_err = pred_error(valid_data, kf_valid)
-        test_err = pred_error(test_data, kf_test)
-
-        return train_err, valid_err, test_err
-
-    train_err, valid_err, test_err = train(1e-3, max_epochs)
-    print("Train finished. Train: {0}, Valid: {1}, Test: {2}".format(train_err, valid_err, test_err))
+    end_time = timeit.default_timer()
+    print(
+        (
+            'Optimization complete with best validation score of %f %%,'
+            'with test performance %f %%'
+        )
+        % (best_validation_loss * 100., test_score * 100.)
+    )
+    print 'The code run for %d epochs, with %f epochs/sec' % (
+        epoch, 1. * epoch / (end_time - start_time))
+    print >> sys.stderr, ('The code for file ' +
+                          os.path.split(__file__)[1] +
+                          ' ran for %.1fs' % ((end_time - start_time)))
 
 
 if __name__ == '__main__':
