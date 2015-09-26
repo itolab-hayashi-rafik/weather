@@ -24,13 +24,12 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
             numpy_rng,
             input=self.x.dimshuffle(1,0,2,3,4),
             mask=self.mask.dimshuffle(1,0,2),
-            output=self.y,
+            output=self.y.dimshuffle(1,0,2,3,4),
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
             n_timesteps=t_out
         )
 
-        print('loading dataset...'),
         train_set, valid_set, test_set = datasets
         self.train_set_x, self.train_set_y = self._shared(train_set)
         self.valid_set_x, self.valid_set_y = self._shared(valid_set)
@@ -38,7 +37,6 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         self.train_set_mask = theano.shared(numpy.ones((len(train_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
         self.valid_set_mask = theano.shared(numpy.ones((len(valid_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
         self.test_set_mask = theano.shared(numpy.ones((len(test_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
-        print('done.')
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
@@ -58,7 +56,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         index = T.lscalar('index')
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.dnn.y
+        y = self.y.dimshuffle(1,0,2,3,4)
         y_ = self.dnn.output
 
         cost = T.mean((y - y_)**2)
