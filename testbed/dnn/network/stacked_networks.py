@@ -470,3 +470,8 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
         # ...
 
+    @property
+    def params(self):
+        params  = super(StackedConvLSTMDecoder, self).params
+        params += self.conv_layer.params
+        return params
