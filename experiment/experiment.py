@@ -120,7 +120,7 @@ def exp_moving_mnist(
         model = EncoderDecoderConvLSTM(numpy_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
         f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
         f = open(model_file, 'wb')
-        model = cPickle.dump(model, f)
+        cPickle.dump(model, f)
         f.close()
         print('done')
 
