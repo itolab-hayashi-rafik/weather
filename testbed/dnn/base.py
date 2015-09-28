@@ -42,6 +42,12 @@ class BaseModel(Model):
         self.h = h
         self.t_out = t_out
 
+    def __getstate__(self):
+        return self.params
+
+    def __setstate__(self, state):
+        self.params = state
+
     @property
     def params(self):
         return {
