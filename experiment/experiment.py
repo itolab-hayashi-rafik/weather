@@ -135,7 +135,8 @@ def exp_moving_mnist(
     validation_frequency = min(n_train_batches, patience / 2)
 
     best_validation_loss = numpy.inf
-    test_score = 0.
+    test_score_mee = 0.
+    test_score_cee = 0.
     start_time = timeit.default_timer()
 
     done_looping = False
@@ -156,10 +157,14 @@ def exp_moving_mnist(
             # train minibatches in the chunk
             for minibatch_index in xrange(n_train_batches):
 
+                batch_start_time = timeit.default_timer()
+
                 minibatch_avg_cost = f_grad_shared(minibatch_index)
                 f_update(learning_rate)
                 # iteration number
                 iter = (epoch - 1) * n_train_batches + minibatch_index
+
+                batch_end_time = timeit.default_timer()
 
                 print(
                     'epoch %i, dataset %i/%i, minibatch %i/%i, train error %f' %
@@ -180,13 +185,14 @@ def exp_moving_mnist(
                     this_validation_loss = numpy.mean(validation_losses)
 
                     print(
-                        'epoch %i, dataset %i/%i, minibatch %i/%i, validation error %f' %
+                        'epoch %i, dataset %i/%i, minibatch %i/%i, took %f secs, validation error %f' %
                         (
                             epoch,
                             dataset_index + 1,
                             n_datasets,
                             minibatch_index + 1,
                             n_train_batches,
+                            (batch_end_time  - batch_start_time),
                             this_validation_loss
                         )
                     )
@@ -234,10 +240,10 @@ def exp_moving_mnist(
     end_time = timeit.default_timer()
     print(
         (
-            'Optimization complete with best validation score of %f %%,'
-            'with test performance %f %%'
+            'Optimization complete with best validation score of %f, '
+            'with test performance %f(CrossE), %f(MSE)'
         )
-        % (best_validation_loss * 100., test_score * 100.)
+        % (best_validation_loss, test_score_cee, test_score_mee)
     )
     print 'The code run for %d epochs, with %f epochs/sec' % (
         epoch, 1. * epoch / (end_time - start_time))
