@@ -140,11 +140,11 @@ class ConvLSTM(RNN):
 
         f = T.nnet.sigmoid(self.conv(x_, self.Wxf) + self.conv(h_, self.Whf) + self.Wcf * c_ + self.bf.dimshuffle('x',0,'x','x'))
         i = T.nnet.sigmoid(self.conv(x_, self.Wxi) + self.conv(h_, self.Whi) + self.Wci * c_ + self.bi.dimshuffle('x',0,'x','x'))
-        c = T.tanh(self.conv(x_, self.Wxc) + self.conv(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
+        c = self.activation(self.conv(x_, self.Wxc) + self.conv(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
         c = f * c_ + i * c
 
         o = T.nnet.sigmoid(self.conv(x_, self.Wxo) + self.conv(h_, self.Who) + self.Wco * c  + self.bo.dimshuffle('x',0,'x','x'))
-        h = o * T.tanh(c)
+        h = o * self.activation(c)
 
         return c, h
 
