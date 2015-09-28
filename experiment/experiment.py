@@ -10,6 +10,7 @@ import datetime
 import timeit
 import numpy
 import theano
+import cPickle
 
 from models.convlstm_encoder_decoder import EncoderDecoderConvLSTM
 from testbed.utils import ndarray
@@ -50,6 +51,7 @@ def exp_moving_mnist(
         valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
         test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
         filter_shapes=[(1,1,3,3)],
+        modeldir='compiled_models/',
         saveto='out/states.npz',
         n_datasets=31,
         patience=5000,  # Number of epoch to wait before early stop if no progress
@@ -85,6 +87,8 @@ def exp_moving_mnist(
     outdir = os.path.dirname(saveto)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
+    if not os.path.exists(modeldir):
+        os.makedirs(modeldir)
 
     # determine parameters
     d, h, w = train_data[0].shape[2], train_data[0].shape[3], train_data[0].shape[4]
@@ -99,12 +103,28 @@ def exp_moving_mnist(
 
     dataset_sizes = (train_dataset_size, valid_dataset_size, test_dataset_size)
 
-    # build model
-    print('building model...'),
-    numpy_rng = numpy.random.RandomState(89677)
-    model = EncoderDecoderConvLSTM(numpy_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
-    f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
-    print('done')
+    # check if there is a saved model
+    model_file = "{0}/convlstm_init_{1}-{2}-{3}-{4}-{5}-{6}.pkl".format(modeldir, t_in, d, w, h, t_out, filter_shapes)
+    if os.path.isfile(model_file):
+        # load model
+        print('loading model...'),
+        f = open(model_file, 'rb')
+        model = cPickle.load(f)
+        f.close()
+        f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
+        print('done')
+    else:
+        # build model
+        print('building model...'),
+        numpy_rng = numpy.random.RandomState(89677)
+        model = EncoderDecoderConvLSTM(numpy_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+        f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
+        f = open(model_file, 'wb')
+        model = cPickle.dump(model, f)
+        f.close()
+        print('done')
+
+
 
     ###############
     # TRAIN MODEL #

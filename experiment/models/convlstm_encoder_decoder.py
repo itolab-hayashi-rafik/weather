@@ -37,11 +37,13 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         self.valid_set_mask = theano.shared(numpy.ones((dataset_sizes[1], t_in, d), dtype=theano.config.floatX), borrow=True)
         self.test_set_mask = theano.shared(numpy.ones((dataset_sizes[2], t_in, d), dtype=theano.config.floatX), borrow=True)
 
+        self.finetune_functions = None
+
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
-    def _shared(self, t_in, d, h, w, t_out, batch_size):
-        shared_x = theano.shared(numpy.zeros((batch_size, t_in, d, h, w), dtype=theano.config.floatX), borrow=True)
-        shared_y = theano.shared(numpy.zeros((batch_size, t_out, d, h, w), dtype=theano.config.floatX), borrow=True)
+    def _shared(self, t_in, d, h, w, t_out, dataset_size):
+        shared_x = theano.shared(numpy.zeros((dataset_size, t_in, d, h, w), dtype=theano.config.floatX), borrow=True)
+        shared_y = theano.shared(numpy.zeros((dataset_size, t_out, d, h, w), dtype=theano.config.floatX), borrow=True)
         return shared_x, shared_y
 
     @property
@@ -51,6 +53,9 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         return params
 
     def build_finetune_function(self, optimizer=O.adadelta, batch_size=16, valid_batch_size=64):
+        if self.finetune_functions is not None:
+            return self.finetune_functions
+
         index = T.lscalar('index')
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
@@ -85,7 +90,9 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
                                 },
                                 name='f_test')
 
-        return (f_grad_shared, f_update, f_valid, f_test)
+        self.finetune_functions = (f_grad_shared, f_update, f_valid, f_test)
+
+        return self.finetune_functions
 
     def set_datasets(self, datasets):
         train_set, valid_set, test_set = datasets
