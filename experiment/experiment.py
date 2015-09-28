@@ -167,13 +167,14 @@ def exp_moving_mnist(
                 batch_end_time = timeit.default_timer()
 
                 print(
-                    'epoch %i, dataset %i/%i, minibatch %i/%i, train error %f' %
+                    'epoch %i, dataset %i/%i, minibatch %i/%i, took %f secs, train error %f' %
                     (
                         epoch,
                         dataset_index + 1,
                         n_datasets,
                         minibatch_index + 1,
                         n_train_batches,
+                        (batch_end_time  - batch_start_time),
                         minibatch_avg_cost
                     )
                 )
