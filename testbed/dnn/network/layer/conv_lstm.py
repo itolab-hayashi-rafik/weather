@@ -61,14 +61,30 @@ class ConvLSTM(RNN):
     def random_initialization(self, size):
         return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
 
-    def conv(self, input, filters):
+    def conv_x(self, input, filters):
+        return self.conv(
+            input=input,
+            filters=filters,
+            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            filter_shape=self.input_filter_shape
+        )
+
+    def conv_h(self, input, filters):
+        return self.conv(
+            input=input,
+            filters=filters,
+            image_shape=(None, self.output_shape[0], self.output_shape[1], self.output_shape[2]),
+            filter_shape=self.hidden_filter_shape
+        )
+
+    def conv(self, input, filters, image_shape, filter_shape):
         # convolve input feature maps with filters
         # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
         x = T.nnet.conv2d(
             input=input,
             filters=filters,
-            filter_shape=self.input_filter_shape,
-            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            image_shape=image_shape,
+            filter_shape=filter_shape,
             border_mode=self.border_mode # zero padding the edge
         )
 
@@ -138,12 +154,12 @@ class ConvLSTM(RNN):
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
 
-        f = T.nnet.sigmoid(self.conv(x_, self.Wxf) + self.conv(h_, self.Whf) + self.Wcf * c_ + self.bf.dimshuffle('x',0,'x','x'))
-        i = T.nnet.sigmoid(self.conv(x_, self.Wxi) + self.conv(h_, self.Whi) + self.Wci * c_ + self.bi.dimshuffle('x',0,'x','x'))
-        c = self.activation(self.conv(x_, self.Wxc) + self.conv(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
+        f = T.nnet.sigmoid(self.conv_x(x_, self.Wxf) + self.conv_h(h_, self.Whf) + self.Wcf * c_ + self.bf.dimshuffle('x',0,'x','x'))
+        i = T.nnet.sigmoid(self.conv_x(x_, self.Wxi) + self.conv_h(h_, self.Whi) + self.Wci * c_ + self.bi.dimshuffle('x',0,'x','x'))
+        c = self.activation(self.conv_x(x_, self.Wxc) + self.conv_h(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
         c = f * c_ + i * c
 
-        o = T.nnet.sigmoid(self.conv(x_, self.Wxo) + self.conv(h_, self.Who) + self.Wco * c  + self.bo.dimshuffle('x',0,'x','x'))
+        o = T.nnet.sigmoid(self.conv_x(x_, self.Wxo) + self.conv_h(h_, self.Who) + self.Wco * c  + self.bo.dimshuffle('x',0,'x','x'))
         h = o * self.activation(c)
 
         return c, h
