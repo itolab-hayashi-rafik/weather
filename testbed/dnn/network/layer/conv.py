@@ -8,7 +8,7 @@ from base import Layer
 
 
 class Conv(Layer):
-    def __init__(self, input, input_shape, filter_shape, poolsize=(1,1), border_mode='full', activation=T.tanh, clip_gradients=False, prefix="Conv", **kwargs):
+    def __init__(self, input, input_shape, filter_shape, poolsize=(1,1), border_mode='full', activation=T.nnet.sigmoid, clip_gradients=False, prefix="Conv", **kwargs):
         '''
         initialize Convolutional Neural Network
         :param input:
@@ -85,15 +85,18 @@ class Conv(Layer):
     def setup(self):
         W_value = self.random_initialization(self.filter_shape)
         self.W = self._shared(W_value, name="W", borrow=True)
+        b_values = numpy.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
+        self.b = theano.shared(value=b_values, borrow=True)
 
     @property
     def output(self):
-        return self.conv(self.input, self.W)
+        return self.activation(self.conv(self.input, self.W) + self.b.dimshuffle('x',0,'x','x'))
 
     @property
     def params(self):
-        return [self.W]
+        return [self.W, self.b]
 
     @params.setter
     def params(self, param_list):
         self.W.set_value(param_list[0].get_value())
+        self.b.set_value(param_list[1].get_value())
