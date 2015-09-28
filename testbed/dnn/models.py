@@ -33,9 +33,14 @@ class EncoderDecoderConvLSTM(BaseModel):
 
     @property
     def params(self):
-        params = super(EncoderDecoderConvLSTM, self).params
+        params = BaseModel.params.fget(self)
         params['filter_shapes'] = self.filter_shapes
         return params
+
+    @params.setter
+    def params(self, param_list):
+        BaseModel.params.fset(self, param_list)
+        self.filter_shapes = param_list['filter_shapes']
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -110,9 +115,14 @@ class EncoderDecoderLSTM(BaseModel):
 
     @property
     def params(self):
-        params = super(EncoderDecoderLSTM, self).params
+        params = BaseModel.params.fget(self)
         params['hidden_layers_sizes'] = self.hidden_layers_sizes
         return params
+
+    @BaseModel.params.setter
+    def params(self, param_list):
+        BaseModel.params.fset(self, param_list)
+        self.hidden_layers_sizes = param_list['hidden_layers_sizes']
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -187,9 +197,14 @@ class StackedConvLSTM(BaseModel):
 
     @property
     def params(self):
-        params = super(StackedConvLSTM, self).params
+        params = BaseModel.params.fget(self)
         params['filter_shapes'] = self.filter_shapes
         return params
+
+    @BaseModel.params.setter
+    def params(self, param_list):
+        BaseModel.params.fset(self, param_list)
+        self.filter_shapes = param_list['filter_shapes']
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''
@@ -265,9 +280,14 @@ class StackedLSTM(BaseModel):
 
     @property
     def params(self):
-        params = super(StackedLSTM, self).params
+        params = BaseModel.params.fget(self)
         params['hidden_layers_sizes'] = self.hidden_layers_sizes
         return params
+
+    @BaseModel.params.setter
+    def params(self, param_list):
+        BaseModel.params.fset(self, param_list)
+        self.hidden_layers_sizes = param_list['hidden_layers_sizes']
 
     def prepare_data(self, xs, ys, maxlen=None):
         '''

@@ -472,6 +472,11 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
 
     @property
     def params(self):
-        params  = super(StackedConvLSTMDecoder, self).params
+        params  = StackedConvLSTM.params.fget(self)
         params += self.conv_layer.params
         return params
+
+    @params.setter
+    def params(self, param_list):
+        StackedConvLSTM.params.fset(self, param_list[:-len(self.conv_layer.params)])
+        self.conv_layer.params = param_list[len(self.conv_layer.params)-1:]
