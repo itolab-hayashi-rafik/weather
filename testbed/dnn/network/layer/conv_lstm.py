@@ -67,8 +67,8 @@ class ConvLSTM(RNN):
         x = T.nnet.conv2d(
             input=input,
             filters=filters,
-            # filter_shape=self.filter_shape,
-            # image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            filter_shape=self.input_filter_shape,
+            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
             border_mode=self.border_mode # zero padding the edge
         )
 
