@@ -51,7 +51,7 @@ def exp_moving_mnist(
         test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
-        n_datasets=10,
+        n_datasets=31,
         patience=5000,  # Number of epoch to wait before early stop if no progress
         patience_increase = 2, # wait this much longer when a new best is found
         max_epochs=5000,  # The maximum number of epoch to run
@@ -68,6 +68,8 @@ def exp_moving_mnist(
     :param states_file:
     :return:
     '''
+
+    print('params: {0}'.format(locals()))
 
     # load dataset
     print('loading dataset...'),
@@ -181,12 +183,15 @@ def exp_moving_mnist(
 
                         test_losses = [f_test(i)
                                        for i in xrange(n_test_batches)]
-                        test_score = numpy.mean(test_losses)
+                        test_mses = [e[0] for e in test_losses]
+                        test_cross_es = [e[1] for e in test_losses]
+                        test_score_mse = numpy.mean(test_mses)
+                        test_score_cross_e = numpy.mean(test_cross_es)
 
                         print(
                             (
                                 '     epoch %i, dataset %i/%i, minibatch %i/%i, test error of'
-                                ' best model %f %%'
+                                ' best model %f(MSE) %%, %f(CrossE)'
                             ) %
                             (
                                 epoch,
@@ -194,7 +199,8 @@ def exp_moving_mnist(
                                 n_datasets,
                                 minibatch_index + 1,
                                 n_train_batches,
-                                test_score * 100.
+                                test_score_mse * 100.,
+                                test_score_cross_e
                             )
                         )
 
