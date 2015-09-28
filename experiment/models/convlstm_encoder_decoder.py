@@ -62,9 +62,9 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         y = self.dnn.y
         y_ = self.dnn.output
 
-        mse = T.mean((y - y_)**2)
-        cross_e = -T.sum(y * T.log(y_) + (1.-y) * T.log(1.-y_))
-        cost = mse
+        mse = T.mean((y - y_)**2) # Mean Square Error
+        cee = -T.sum(y * T.log(y_) + (1.-y) * T.log(1.-y_)) # Cross Entropy Error
+        cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
 
@@ -82,7 +82,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
                                   },
                                   name='f_valid')
 
-        f_test = theano.function([index], [mse, cross_e],
+        f_test = theano.function([index], [mse, cee],
                                 givens={
                                     self.x: self.test_set_x[index * valid_batch_size: (index + 1) * valid_batch_size],
                                     self.mask: self.test_set_mask[index * valid_batch_size: (index + 1) * valid_batch_size],

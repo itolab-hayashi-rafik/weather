@@ -204,9 +204,9 @@ def exp_moving_mnist(
                         test_losses = [f_test(i)
                                        for i in xrange(n_test_batches)]
                         test_mses = [e[0] for e in test_losses]
-                        test_cross_es = [e[1] for e in test_losses]
+                        test_cees = [e[1] for e in test_losses]
                         test_score_mse = numpy.mean(test_mses)
-                        test_score_cross_e = numpy.mean(test_cross_es)
+                        test_score_cee = numpy.mean(test_cees)
 
                         print(
                             (
@@ -220,7 +220,7 @@ def exp_moving_mnist(
                                 minibatch_index + 1,
                                 n_train_batches,
                                 test_score_mse * 100.,
-                                test_score_cross_e
+                                test_score_cee
                             )
                         )
 
