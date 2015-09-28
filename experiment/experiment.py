@@ -162,14 +162,14 @@ def exp_moving_mnist(
                 iter = (epoch - 1) * n_train_batches + minibatch_index
 
                 print(
-                    'epoch %i, dataset %i/%i, minibatch %i/%i, train error %f %%' %
+                    'epoch %i, dataset %i/%i, minibatch %i/%i, train error %f' %
                     (
                         epoch,
                         dataset_index + 1,
                         n_datasets,
                         minibatch_index + 1,
                         n_train_batches,
-                        minibatch_avg_cost * 100.
+                        minibatch_avg_cost
                     )
                 )
 
@@ -180,14 +180,14 @@ def exp_moving_mnist(
                     this_validation_loss = numpy.mean(validation_losses)
 
                     print(
-                        'epoch %i, dataset %i/%i, minibatch %i/%i, validation error %f %%' %
+                        'epoch %i, dataset %i/%i, minibatch %i/%i, validation error %f' %
                         (
                             epoch,
                             dataset_index + 1,
                             n_datasets,
                             minibatch_index + 1,
                             n_train_batches,
-                            this_validation_loss * 100.
+                            this_validation_loss
                         )
                     )
 
@@ -211,7 +211,7 @@ def exp_moving_mnist(
                         print(
                             (
                                 '     epoch %i, dataset %i/%i, minibatch %i/%i, test error of'
-                                ' best model %f(MSE) %%, %f(CrossE)'
+                                ' best model %f(CrossE), %f(MSE)'
                             ) %
                             (
                                 epoch,
@@ -219,8 +219,8 @@ def exp_moving_mnist(
                                 n_datasets,
                                 minibatch_index + 1,
                                 n_train_batches,
-                                test_score_mse * 100.,
-                                test_score_cee
+                                test_score_cee,
+                                test_score_mse
                             )
                         )
 
