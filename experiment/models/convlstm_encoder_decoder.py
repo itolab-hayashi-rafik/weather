@@ -14,7 +14,7 @@ from testbed.dnn.network import tensor5
 import optimizers as O
 
 class EncoderDecoderConvLSTM(dnn.BaseModel):
-    def __init__(self, numpy_rng, datasets, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1, 1, 3, 3)]):
+    def __init__(self, numpy_rng, dataset_sizes, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1, 1, 3, 3)]):
         self.filter_shapes = filter_shapes
         self.x = tensor5('x', dtype=theano.config.floatX)
         self.mask = T.tensor3('mask', dtype=theano.config.floatX)
@@ -30,20 +30,18 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
             n_timesteps=t_out
         )
 
-        train_set, valid_set, test_set = datasets
-        self.train_set_x, self.train_set_y = self._shared(train_set)
-        self.valid_set_x, self.valid_set_y = self._shared(valid_set)
-        self.test_set_x, self.test_set_y = self._shared(test_set)
-        self.train_set_mask = theano.shared(numpy.ones((len(train_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
-        self.valid_set_mask = theano.shared(numpy.ones((len(valid_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
-        self.test_set_mask = theano.shared(numpy.ones((len(test_set[0]), t_in, d), dtype=theano.config.floatX), borrow=True)
+        self.train_set_x, self.train_set_y = self._shared(t_in, d, h, w, t_out, dataset_sizes[0])
+        self.valid_set_x, self.valid_set_y = self._shared(t_in, d, h, w, t_out, dataset_sizes[1])
+        self.test_set_x, self.test_set_y = self._shared(t_in, d, h, w, t_out, dataset_sizes[2])
+        self.train_set_mask = theano.shared(numpy.ones((dataset_sizes[0], t_in, d), dtype=theano.config.floatX), borrow=True)
+        self.valid_set_mask = theano.shared(numpy.ones((dataset_sizes[1], t_in, d), dtype=theano.config.floatX), borrow=True)
+        self.test_set_mask = theano.shared(numpy.ones((dataset_sizes[2], t_in, d), dtype=theano.config.floatX), borrow=True)
 
         super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
 
-    def _shared(self, data_xy, borrow=True):
-        data_x, data_y = data_xy
-        shared_x = theano.shared(numpy.asarray(data_x, dtype=theano.config.floatX), borrow=borrow)
-        shared_y = theano.shared(numpy.asarray(data_y, dtype=theano.config.floatX), borrow=borrow)
+    def _shared(self, t_in, d, h, w, t_out, batch_size):
+        shared_x = theano.shared(numpy.zeros((batch_size, t_in, d, h, w), dtype=theano.config.floatX), borrow=True)
+        shared_y = theano.shared(numpy.zeros((batch_size, t_out, d, h, w), dtype=theano.config.floatX), borrow=True)
         return shared_x, shared_y
 
     @property
@@ -56,7 +54,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         index = T.lscalar('index')
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.y.dimshuffle(1,0,2,3,4)
+        y = self.dnn.y
         y_ = self.dnn.output
 
         cost = T.mean((y - y_)**2)
@@ -87,3 +85,11 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
 
         return (f_grad_shared, f_update, f_valid, f_test)
 
+    def set_datasets(self, datasets):
+        train_set, valid_set, test_set = datasets
+        self.train_set_x.set_value(train_set[0])
+        self.train_set_y.set_value(train_set[1])
+        self.valid_set_x.set_value(valid_set[0])
+        self.valid_set_y.set_value(train_set[1])
+        self.test_set_x.set_value(test_set[0])
+        self.test_set_y.set_value(test_set[1])

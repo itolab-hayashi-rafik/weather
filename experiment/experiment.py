@@ -51,6 +51,7 @@ def exp_moving_mnist(
         test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
+        n_datasets=10,
         patience=5000,  # Number of epoch to wait before early stop if no progress
         patience_increase = 2, # wait this much longer when a new best is found
         max_epochs=5000,  # The maximum number of epoch to run
@@ -87,14 +88,19 @@ def exp_moving_mnist(
     d, h, w = train_data[0].shape[2], train_data[0].shape[3], train_data[0].shape[4]
     t_in, t_out = train_data[0].shape[1], train_data[1].shape[1]
 
-    n_train_batches = len(train_data[0]) / batch_size
-    n_valid_batches = len(valid_data[0]) / valid_batch_size
-    n_test_batches = len(test_data[0]) / valid_batch_size
+    train_dataset_size = len(train_data[0]) / n_datasets
+    valid_dataset_size = len(valid_data[0]) / n_datasets
+    test_dataset_size = len(test_data[0]) / n_datasets
+    n_train_batches = train_dataset_size / batch_size
+    n_valid_batches = valid_dataset_size / valid_batch_size
+    n_test_batches = test_dataset_size / valid_batch_size
+
+    dataset_sizes = (train_dataset_size, valid_dataset_size, test_dataset_size)
 
     # build model
     print('building model...'),
     numpy_rng = numpy.random.RandomState(89677)
-    model = EncoderDecoderConvLSTM(numpy_rng, datasets, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+    model = EncoderDecoderConvLSTM(numpy_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
     f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
     print('done')
 
@@ -114,72 +120,84 @@ def exp_moving_mnist(
     epoch = 0
     while (epoch < max_epochs) and (not done_looping):
         epoch = epoch + 1
-        for minibatch_index in xrange(n_train_batches):
+        for dataset_index in xrange(n_datasets):
 
-            minibatch_avg_cost = f_grad_shared(minibatch_index)
-            f_update(learning_rate)
-            # iteration number
-            iter = (epoch - 1) * n_train_batches + minibatch_index
+            # copy a chunk of dataset to shared memory
+            train_set_x = train_data[0][dataset_index*train_dataset_size : (dataset_index+1)*train_dataset_size]
+            train_set_y = train_data[1][dataset_index*train_dataset_size : (dataset_index+1)*train_dataset_size]
+            valid_set_x = valid_data[0][dataset_index*valid_dataset_size : (dataset_index+1)*valid_dataset_size]
+            valid_set_y = valid_data[1][dataset_index*valid_dataset_size : (dataset_index+1)*valid_dataset_size]
+            test_set_x = test_data[0][dataset_index*test_dataset_size : (dataset_index+1)*test_dataset_size]
+            test_set_y = test_data[1][dataset_index*test_dataset_size : (dataset_index+1)*test_dataset_size]
+            model.set_datasets(((train_set_x, train_set_y), (valid_set_x, valid_set_y), (test_set_x, test_set_y)))
 
-            print(
-                'epoch %i, minibatch %i/%i, train error %f %%' %
-                (
-                    epoch,
-                    minibatch_index + 1,
-                    n_train_batches,
-                    minibatch_avg_cost * 100.
-                )
-            )
+            # train minibatches in the chunk
+            for minibatch_index in xrange(n_train_batches):
 
-            if (iter + 1) % validation_frequency == 0:
-                # compute zero-one loss on validation set
-                validation_losses = [f_valid(i)
-                                     for i in xrange(n_valid_batches)]
-                this_validation_loss = numpy.mean(validation_losses)
+                minibatch_avg_cost = f_grad_shared(minibatch_index)
+                f_update(learning_rate)
+                # iteration number
+                iter = (epoch - 1) * n_train_batches + minibatch_index
 
                 print(
-                    'epoch %i, minibatch %i/%i, validation error %f %%' %
+                    'epoch %i, minibatch %i/%i, train error %f %%' %
                     (
                         epoch,
                         minibatch_index + 1,
                         n_train_batches,
-                        this_validation_loss * 100.
+                        minibatch_avg_cost * 100.
                     )
                 )
 
-                # if we got the best validation score until now
-                if this_validation_loss < best_validation_loss:
-                    #improve patience if loss improvement is good enough
-                    if this_validation_loss < best_validation_loss * \
-                            improvement_threshold:
-                        patience = max(patience, iter * patience_increase)
-
-                    best_validation_loss = this_validation_loss
-                    # test it on the test set
-
-                    test_losses = [f_test(i)
-                                   for i in xrange(n_test_batches)]
-                    test_score = numpy.mean(test_losses)
+                if (iter + 1) % validation_frequency == 0:
+                    # compute zero-one loss on validation set
+                    validation_losses = [f_valid(i)
+                                         for i in xrange(n_valid_batches)]
+                    this_validation_loss = numpy.mean(validation_losses)
 
                     print(
-                        (
-                            '     epoch %i, minibatch %i/%i, test error of'
-                            ' best model %f %%'
-                        ) %
+                        'epoch %i, minibatch %i/%i, validation error %f %%' %
                         (
                             epoch,
                             minibatch_index + 1,
                             n_train_batches,
-                            test_score * 100.
+                            this_validation_loss * 100.
                         )
                     )
 
-                    # save the best model
-                    numpy.savez(saveto, **model.params)
+                    # if we got the best validation score until now
+                    if this_validation_loss < best_validation_loss:
+                        #improve patience if loss improvement is good enough
+                        if this_validation_loss < best_validation_loss * \
+                                improvement_threshold:
+                            patience = max(patience, iter * patience_increase)
 
-            if patience <= iter:
-                done_looping = True
-                break
+                        best_validation_loss = this_validation_loss
+                        # test it on the test set
+
+                        test_losses = [f_test(i)
+                                       for i in xrange(n_test_batches)]
+                        test_score = numpy.mean(test_losses)
+
+                        print(
+                            (
+                                '     epoch %i, minibatch %i/%i, test error of'
+                                ' best model %f %%'
+                            ) %
+                            (
+                                epoch,
+                                minibatch_index + 1,
+                                n_train_batches,
+                                test_score * 100.
+                            )
+                        )
+
+                        # save the best model
+                        numpy.savez(saveto, **model.params)
+
+                if patience <= iter:
+                    done_looping = True
+                    break
 
     end_time = timeit.default_timer()
     print(
