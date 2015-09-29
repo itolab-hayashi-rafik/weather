@@ -18,7 +18,18 @@ from testbed.utils import ndarray
 def unzip(params):
     return params # FIXME: need deepcopy
 
-def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset):
+def patchify(data, patch_size):
+    # dataset.shape: (n_timesteps, n_feature_maps, height, width)
+    n_patches = data.shape[1] * numpy.prod(patch_size)
+    # patch_shape: (n_timesteps, n_feature_maps, height, width)
+    patch_shape = (data.shape[0], n_patches, data.shape[2]/patch_size[0], data.shape[3]/patch_size[1])
+    patches = []
+    for j in xrange(patch_size[0]):
+        for i in xrange(patch_size[1]):
+            patches.append(data[:, :, j*patch_shape[2]:(j+1)*patch_shape[2], i*patch_shape[3]:(i+1)*patch_shape[3]])
+    return ndarray(patches).swapaxes(0,1).reshape(patch_shape)
+
+def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size):
     '''
     load datasets
     :param train_dataset:
@@ -30,8 +41,8 @@ def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset):
         nda = numpy.load(file)
         input_raw_data = nda['input_raw_data']
         clips = nda['clips']
-        xs = [input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]] for i in xrange(clips.shape[1])]
-        ys = [input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]] for i in xrange(clips.shape[1])]
+        xs = [patchify(input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]], patch_size) for i in xrange(clips.shape[1])]
+        ys = [patchify(input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]], patch_size) for i in xrange(clips.shape[1])]
         return (ndarray(xs), ndarray(ys))
 
     # load dataset
@@ -50,6 +61,7 @@ def exp_moving_mnist(
         train_dataset='../data/moving_mnist/out/moving-mnist-train.npz',
         valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
         test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
+        patch_size=(4,4),
         filter_shapes=[(1,1,3,3)],
         modeldir='compiled_models/',
         saveto='out/states.npz',
@@ -73,9 +85,13 @@ def exp_moving_mnist(
 
     print('params: {0}'.format(locals()))
 
+    ################
+    # load dataset #
+    ################
+
     # load dataset
     print('loading dataset...'),
-    datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset)
+    datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size)
     train_data, valid_data, test_data = datasets
     print('done')
 
@@ -263,17 +279,17 @@ if __name__ == '__main__':
 
     exp = int(argv[1])
     if exp == 1:
-        filter_shapes = [(256,1,5,5)]
+        filter_shapes = [(256,16,5,5)]
     elif exp == 2:
-        filter_shapes = [(128,1,5,5),(128,128,5,5)]
+        filter_shapes = [(128,16,5,5),(128,128,5,5)]
     elif exp == 3:
-        filter_shapes = [(128,1,5,5),(64,128,5,5),(64,64,5,5)]
+        filter_shapes = [(128,16,5,5),(64,128,5,5),(64,64,5,5)]
     elif exp == 4:
-        filter_shapes = [(128,1,9,9),(128,128,9,9)]
+        filter_shapes = [(128,16,9,9),(128,128,9,9)]
     elif exp == 5:
-        filter_shapes = [(128,1,9,9),(64,128,9,9),(64,64,9,9)]
+        filter_shapes = [(128,16,9,9),(64,128,9,9),(64,64,9,9)]
     elif exp == 6:
-        filter_shapes = [(2,1,5,5),(2,2,9,9)]
+        filter_shapes = [(32,16,5,5)]
     else:
         raise NotImplementedError
 
