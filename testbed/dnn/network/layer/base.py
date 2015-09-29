@@ -23,12 +23,10 @@ def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1)
         x = cuda.dnn.dnn_conv(
             img=input,
             kerns=filters,
-            border_mode=(filter_shape[2]-1, filter_shape[3]-1),
+            border_mode=(filter_shape[2]//2, filter_shape[3]//2),
             subsample=subsample,
             conv_mode='conv'
         )
-
-        print('using cuDNN for conv2d_keepshape') # DEBUG
     else:
         # convolve input feature maps with filters
         # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
@@ -46,8 +44,6 @@ def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1)
         h_shift = filter_shape[2] // 2
         w_shift = filter_shape[3] // 2
         x = x[:, :, h_shift:image_shape[2]+h_shift, w_shift:image_shape[3]+w_shift]
-
-        print('using T.nnet.conv2d for conv2d_keepshape') # DEBUG
 
     return x
 
