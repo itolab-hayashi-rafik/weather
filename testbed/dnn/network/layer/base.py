@@ -5,6 +5,57 @@ import theano.tensor as T
 from numpy.random import RandomState
 from theano.tensor.shared_randomstreams import RandomStreams
 
+from theano.sandbox import cuda
+
+def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1), **kargs):
+    '''
+    compute convolution with its output maintaining the original shape (width, height) of the input
+    :param input:
+    :param filters:
+    :param image_shape:
+    :param filter_shape:
+    :param subsample:
+    :param kargs:
+    :return:
+    '''
+    if cuda.cuda_available and cuda.dnn.dnn_available():
+        # cuDNN is available
+        x = cuda.dnn.dnn_conv(
+            img=input,
+            kerns=filters,
+            border_mode=(filter_shape[2]-1, filter_shape[3]-1),
+            subsample=subsample,
+            conv_mode='conv'
+        )
+    else:
+        # convolve input feature maps with filters
+        # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
+        x = T.nnet.conv2d(
+            input=input,
+            filters=filters,
+            image_shape=image_shape,
+            filter_shape=filter_shape,
+            border_mode='full', # zero padding the edge
+            subsample=subsample,
+            **kargs
+        )
+
+        # reshape x_ so that the size of output tensor matches that of the input of LSTM
+        h_bound_l = filter_shape[2] / 2
+        h_bound_r = -h_bound_l if filter_shape[2] % 2 == 1 else -h_bound_l+1
+        w_bound_l = filter_shape[3] / 2
+        w_bound_r = -w_bound_l if filter_shape[3] % 2 == 1 else -w_bound_l+1
+        if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
+            x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
+        elif h_bound_l != h_bound_r:
+            x = x[:, :, h_bound_l:h_bound_r, :]
+        elif w_bound_l != w_bound_r:
+            x = x[:, :, :, w_bound_l:w_bound_r]
+
+    return x
+
+
+
 class Layer(object):
     def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="Layer", **kwargs):
         """
