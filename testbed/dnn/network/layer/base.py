@@ -27,6 +27,8 @@ def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1)
             subsample=subsample,
             conv_mode='conv'
         )
+
+        print('using cuDNN for conv2d_keepshape') # DEBUG
     else:
         # convolve input feature maps with filters
         # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
@@ -41,16 +43,11 @@ def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1)
         )
 
         # reshape x_ so that the size of output tensor matches that of the input of LSTM
-        h_bound_l = filter_shape[2] / 2
-        h_bound_r = -h_bound_l if filter_shape[2] % 2 == 1 else -h_bound_l+1
-        w_bound_l = filter_shape[3] / 2
-        w_bound_r = -w_bound_l if filter_shape[3] % 2 == 1 else -w_bound_l+1
-        if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
-            x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
-        elif h_bound_l != h_bound_r:
-            x = x[:, :, h_bound_l:h_bound_r, :]
-        elif w_bound_l != w_bound_r:
-            x = x[:, :, :, w_bound_l:w_bound_r]
+        h_shift = filter_shape[2] // 2
+        w_shift = filter_shape[3] // 2
+        x = x[:, :, h_shift:image_shape[2]+h_shift, w_shift:image_shape[3]+w_shift]
+
+        print('using T.nnet.conv2d for conv2d_keepshape') # DEBUG
 
     return x
 
