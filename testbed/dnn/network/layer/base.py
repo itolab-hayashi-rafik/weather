@@ -18,7 +18,7 @@ def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1)
     :param kargs:
     :return:
     '''
-    if cuda.cuda_available and cuda.dnn.dnn_available():
+    if cuda.cuda_available and cuda.dnn.dnn_available() and filter_shape[2] % 2 == 1 and filter_shape[3] % 2 == 1:
         # cuDNN is available
         x = cuda.dnn.dnn_conv(
             img=input,
