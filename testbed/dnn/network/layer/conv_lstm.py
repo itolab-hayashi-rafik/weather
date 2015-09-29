@@ -120,7 +120,7 @@ class ConvLSTM(RNN):
         self.Wxf = self._shared(Wxf_value, name="Wxf", borrow=True)
         Whf_value = self.random_initialization(self.hidden_filter_shape)
         self.Whf = self._shared(Whf_value, name="Whf", borrow=True)
-        Wcf_value = self.random_initialization(self.output_shape)
+        Wcf_value = self.random_initialization((self.output_shape[0],))
         self.Wcf = self._shared(Wcf_value, name="Wcf", borrow=True)
         bf_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bf = self._shared(bf_value, name="bf", borrow=True)
@@ -129,7 +129,7 @@ class ConvLSTM(RNN):
         self.Wxi = self._shared(Wxi_value, name="Wxi", borrow=True)
         Whi_value = self.random_initialization(self.hidden_filter_shape)
         self.Whi = self._shared(Whi_value, name="Whi", borrow=True)
-        Wci_value = self.random_initialization(self.output_shape)
+        Wci_value = self.random_initialization((self.output_shape[0],))
         self.Wci = self._shared(Wci_value, name="Wci", borrow=True)
         bi_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bi = self._shared(bi_value, name="bi", borrow=True)
@@ -145,7 +145,7 @@ class ConvLSTM(RNN):
         self.Wxo = self._shared(Wxo_value, name="Wxo", borrow=True)
         Who_value = self.random_initialization(self.hidden_filter_shape)
         self.Who = self._shared(Who_value, name="Who", borrow=True)
-        Wco_value = self.random_initialization(self.output_shape)
+        Wco_value = self.random_initialization((self.output_shape[0],))
         self.Wco = self._shared(Wco_value, name="Wco", borrow=True)
         bo_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
         self.bo = self._shared(bo_value, name="bo", borrow=True)
@@ -154,12 +154,12 @@ class ConvLSTM(RNN):
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
 
-        f = T.nnet.sigmoid(self.conv_x(x_, self.Wxf) + self.conv_h(h_, self.Whf) + self.Wcf * c_ + self.bf.dimshuffle('x',0,'x','x'))
-        i = T.nnet.sigmoid(self.conv_x(x_, self.Wxi) + self.conv_h(h_, self.Whi) + self.Wci * c_ + self.bi.dimshuffle('x',0,'x','x'))
+        f = T.nnet.sigmoid(self.conv_x(x_, self.Wxf) + self.conv_h(h_, self.Whf) + self.Wcf.dimshuffle('x',0,'x','x') * c_ + self.bf.dimshuffle('x',0,'x','x'))
+        i = T.nnet.sigmoid(self.conv_x(x_, self.Wxi) + self.conv_h(h_, self.Whi) + self.Wci.dimshuffle('x',0,'x','x') * c_ + self.bi.dimshuffle('x',0,'x','x'))
         c = self.activation(self.conv_x(x_, self.Wxc) + self.conv_h(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
         c = f * c_ + i * c
 
-        o = T.nnet.sigmoid(self.conv_x(x_, self.Wxo) + self.conv_h(h_, self.Who) + self.Wco * c  + self.bo.dimshuffle('x',0,'x','x'))
+        o = T.nnet.sigmoid(self.conv_x(x_, self.Wxo) + self.conv_h(h_, self.Who) + self.Wco.dimshuffle('x',0,'x','x') * c  + self.bo.dimshuffle('x',0,'x','x'))
         h = o * self.activation(c)
 
         return c, h
