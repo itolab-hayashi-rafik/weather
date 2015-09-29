@@ -56,7 +56,7 @@ class TestBed(object):
         self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
 
         print('Building pretrain function...'),
-        self.f_pretrain = self.model.build_prediction_function()
+        self.f_pretrain = self.model.build_pretrain_function()
         print('done')
 
         print('Building finetune function...'),
