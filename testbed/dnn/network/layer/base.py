@@ -5,6 +5,50 @@ import theano.tensor as T
 from numpy.random import RandomState
 from theano.tensor.shared_randomstreams import RandomStreams
 
+from theano.sandbox import cuda
+
+def conv2d_keepshape(input, filters, image_shape, filter_shape, subsample=(1, 1), **kargs):
+    '''
+    compute convolution with its output maintaining the original shape (width, height) of the input
+    :param input:
+    :param filters:
+    :param image_shape:
+    :param filter_shape:
+    :param subsample:
+    :param kargs:
+    :return:
+    '''
+    if cuda.cuda_available and cuda.dnn.dnn_available() and filter_shape[2] % 2 == 1 and filter_shape[3] % 2 == 1:
+        # cuDNN is available
+        x = cuda.dnn.dnn_conv(
+            img=input,
+            kerns=filters,
+            border_mode=(filter_shape[2]//2, filter_shape[3]//2),
+            subsample=subsample,
+            conv_mode='conv'
+        )
+    else:
+        # convolve input feature maps with filters
+        # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
+        x = T.nnet.conv2d(
+            input=input,
+            filters=filters,
+            image_shape=image_shape,
+            filter_shape=filter_shape,
+            border_mode='full', # zero padding the edge
+            subsample=subsample,
+            **kargs
+        )
+
+        # reshape x_ so that the size of output tensor matches that of the input of LSTM
+        h_shift = filter_shape[2] // 2
+        w_shift = filter_shape[3] // 2
+        x = x[:, :, h_shift:image_shape[2]+h_shift, w_shift:image_shape[3]+w_shift]
+
+    return x
+
+
+
 class Layer(object):
     def __init__(self, input, n_in, n_out, activation=T.tanh, clip_gradients=False, prefix="Layer", **kwargs):
         """

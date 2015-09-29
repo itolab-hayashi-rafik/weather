@@ -4,11 +4,12 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal import downsample
 
+from base import conv2d_keepshape
 from base import Layer
 
 
 class Conv(Layer):
-    def __init__(self, input, input_shape, filter_shape, poolsize=(1,1), border_mode='full', activation=T.nnet.sigmoid, clip_gradients=False, prefix="Conv", **kwargs):
+    def __init__(self, input, input_shape, filter_shape, activation=T.nnet.sigmoid, clip_gradients=False, prefix="Conv", **kwargs):
         '''
         initialize Convolutional Neural Network
         :param input:
@@ -27,60 +28,20 @@ class Conv(Layer):
         self.input_shape = input_shape
         self.filter_shape = filter_shape
         self.output_shape = (self.filter_shape[0], self.input_shape[1], self.input_shape[2])
-        self.poolsize = poolsize
-        self.border_mode = border_mode
 
         # LSTM receives in total:
         # "num of output feature maps * input height * input width / pooling size" inputs
-        n_in = numpy.prod(input_shape[1:]) / numpy.prod(poolsize)
+        n_in = numpy.prod(self.input_shape)
 
         # the num of output units is the same as that of input, so that the ConvLSTM in the next layer
         # can receive exactly the same number of input as this layer receives
         # FIXME: consider downsampling, using poolsize
-        n_out = n_in
+        n_out = numpy.prod(self.output_shape)
 
         super(Conv, self).__init__(input, n_in, n_out, activation, clip_gradients, prefix, **kwargs)
 
     def random_initialization(self, size):
         return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
-
-    def conv(self, input, filters):
-        # convolve input feature maps with filters
-        # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
-        x = T.nnet.conv2d(
-            input=input,
-            filters=filters,
-            filter_shape=self.filter_shape,
-            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
-            border_mode=self.border_mode # zero padding the edge
-        ) # (n_samples, self.filter_shape[0], self.input_shape[1] + self.filter_shape[1] - 1, self.input_shape[2] + self.filter_shape[2] - 1)
-
-        # downsample each feature map individually, using maxpooling
-        x = downsample.max_pool_2d(
-            input=x,
-            ds=self.poolsize,
-            ignore_border=True
-        )
-
-        # reshape x_ so that the size of output tensor matches that of the input tensor
-        if self.border_mode == 'full':
-            h_bound_l = int(self.filter_shape[2] / 2)
-            h_bound_r = -h_bound_l if self.filter_shape[2] % 2 == 1 else -h_bound_l+1
-            w_bound_l = int(self.filter_shape[3] / 2)
-            w_bound_r = -w_bound_l if self.filter_shape[3] % 2 == 1 else -w_bound_l+1
-            if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
-                x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
-            elif h_bound_l != h_bound_r:
-                x = x[:, :, h_bound_l:h_bound_r, :]
-            elif w_bound_l != w_bound_r:
-                x = x[:, :, :, w_bound_l:w_bound_r]
-        elif self.border_mode == 'valid':
-            pass
-            # FIXME: fill the lacking value on the border by padding zero or copying the nearest value
-        else:
-            raise NotImplementedError("border_mode must be either 'full' or 'valid'")
-
-        return x
 
     def setup(self):
         W_value = self.random_initialization(self.filter_shape)
@@ -90,7 +51,13 @@ class Conv(Layer):
 
     @property
     def output(self):
-        return self.activation(self.conv(self.input, self.W) + self.b.dimshuffle('x',0,'x','x'))
+        conv_out = conv2d_keepshape(
+            input=self.input,
+            filters=self.W,
+            image_shape=(None, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+            filter_shape=self.filter_shape
+        )
+        return self.activation(conv_out + self.b.dimshuffle('x',0,'x','x'))
 
     @property
     def params(self):

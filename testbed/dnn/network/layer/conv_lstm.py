@@ -4,6 +4,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal import downsample
 
+from base import conv2d_keepshape
 from rnn import RNN
 
 
@@ -13,7 +14,7 @@ class ConvLSTM(RNN):
     see: http://deeplearning.net/tutorial/lstm.html
     see: https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/__init__.py
     """
-    def __init__(self, input_shape, filter_shape, poolsize=(1,1), border_mode='full', activation=T.tanh, clip_gradients=False, prefix="ConvLSTM", **kwargs):
+    def __init__(self, input_shape, filter_shape, activation=T.tanh, clip_gradients=False, prefix="ConvLSTM", **kwargs):
         '''
          initialize ConvLSTM
 
@@ -44,17 +45,15 @@ class ConvLSTM(RNN):
         self.input_filter_shape = filter_shape
         self.hidden_filter_shape = (filter_shape[0], filter_shape[0], filter_shape[2], filter_shape[3])
         self.output_shape = (filter_shape[0], input_shape[1], input_shape[2])
-        self.poolsize = poolsize
-        self.border_mode = border_mode
 
         # LSTM receives in total:
         # "num of output feature maps * input height * input width / pooling size" inputs
-        n_in = numpy.prod(input_shape[1:]) / numpy.prod(poolsize)
+        n_in = numpy.prod(self.input_shape)
 
         # the num of output units is the same as that of input, so that the ConvLSTM in the next layer
         # can receive exactly the same number of input as this layer receives
         # FIXME: consider downsampling, using poolsize
-        n_out = n_in
+        n_out = numpy.prod(self.output_shape)
 
         super(ConvLSTM, self).__init__(n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
@@ -79,39 +78,12 @@ class ConvLSTM(RNN):
 
     def conv(self, input, filters, image_shape, filter_shape):
         # convolve input feature maps with filters
-        # the output tensor is of shape (batch size, nb filters, input_row + filter_row - 1, input_col + filter_col - 1)
-        x = T.nnet.conv2d(
+        x = conv2d_keepshape(
             input=input,
             filters=filters,
             image_shape=image_shape,
-            filter_shape=filter_shape,
-            border_mode=self.border_mode # zero padding the edge
+            filter_shape=filter_shape
         )
-
-        # downsample each feature map individually, using maxpooling
-        x = downsample.max_pool_2d(
-            input=x,
-            ds=self.poolsize,
-            ignore_border=True
-        )
-
-        # reshape x_ so that the size of output tensor matches that of the input of LSTM
-        if self.border_mode == 'full':
-            h_bound_l = int(self.input_filter_shape[2] / 2)
-            h_bound_r = -h_bound_l if self.input_filter_shape[2] % 2 == 1 else -h_bound_l+1
-            w_bound_l = int(self.input_filter_shape[3] / 2)
-            w_bound_r = -w_bound_l if self.input_filter_shape[3] % 2 == 1 else -w_bound_l+1
-            if h_bound_l != h_bound_r and w_bound_l != w_bound_r:
-                x = x[:, :, h_bound_l:h_bound_r, w_bound_l:w_bound_r]
-            elif h_bound_l != h_bound_r:
-                x = x[:, :, h_bound_l:h_bound_r, :]
-            elif w_bound_l != w_bound_r:
-                x = x[:, :, :, w_bound_l:w_bound_r]
-        elif self.border_mode == 'valid':
-            pass
-            # FIXME: fill the lacking value on the border by padding zero or copying the nearest value
-        else:
-            raise NotImplementedError("border_mode must be either 'full' or 'valid'")
 
         return x
 
