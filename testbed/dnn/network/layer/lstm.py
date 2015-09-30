@@ -43,16 +43,16 @@ class LSTM(RNN):
     def step(self, m_, x_, c_, h_):
         # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
         # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
-        obs = T.concatenate([c_, h_, x_], axis=1)
+        obs1 = T.concatenate([c_, h_, x_], axis=1)
 
-        f = T.nnet.sigmoid(T.dot(obs, self.Wf) + self.bf)
-        i = T.nnet.sigmoid(T.dot(obs, self.Wi) + self.bi)
-        o = T.nnet.sigmoid(T.dot(obs, self.Wo) + self.bo)
-        c = T.tanh(T.dot(obs, self.Wc) + self.bc)
-
+        f = T.nnet.sigmoid(T.dot(obs1, self.Wf) + self.bf)
+        i = T.nnet.sigmoid(T.dot(obs1, self.Wi) + self.bi)
+        c = self.activation(T.dot(obs1, self.Wc) + self.bc)
         c = f * c_ + i * c
 
-        h = o * T.tanh(c)
+        obs2 = T.concatenate([c,  h_, x_], axis=1)
+        o = T.nnet.sigmoid(T.dot(obs2, self.Wo) + self.bo)
+        h = o * self.activation(c)
 
         return c, h
 

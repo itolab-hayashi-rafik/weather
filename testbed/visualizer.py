@@ -163,7 +163,7 @@ class Dataset(object):
         self.last_x = x
 
     def append_cost(self, train_cost, valid_cost, test_cost):
-        cost_x = self.last_x + 1
+        cost_x = self.last_cost_x + 1
 
         costs = (train_cost, valid_cost, test_cost)
 
