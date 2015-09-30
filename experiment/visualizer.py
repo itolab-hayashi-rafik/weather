@@ -53,7 +53,7 @@ class LearningCurve(LineGraph):
             (self.costs_x[2], self.costs_y[2]),
         ]
 
-def parse_log(log_file='logs/1.log', unit='minibatch'):
+def parse_log(log_file, unit='minibatch'):
     p_train_valid = r"epoch ([0-9]+), dataset ([0-9]+)/([0-9]+), minibatch ([0-9]+)/([0-9]+), took ([0-9.]+) secs, (train|validation) error ([0-9.]+)"
     p_test = r"(?:\s*)epoch ([0-9]+), dataset ([0-9]+)/([0-9]+), minibatch ([0-9]+)/([0-9]+), test error of best model ([0-9.]+)\(CrossE\), ([0-9.]+)\(MSE\)"
 
@@ -66,12 +66,14 @@ def parse_log(log_file='logs/1.log', unit='minibatch'):
 
     def get_index(epoch, dataset, n_datasets, minibatch, n_minibatches, unit=unit):
         assert unit in ('epoch', 'dataset', 'minibatch')
+        (epoch, dataset, n_datasets, minibatch, n_minibatches) = \
+            (int(epoch), int(dataset), int(n_datasets), int(minibatch), int(n_minibatches))
         if unit == 'epoch':
-            return int(epoch)-1
+            return (epoch-1)
         elif unit == 'dataset':
-            return (int(epoch)-1)*int(n_datasets) + (int(dataset)-1)
+            return (epoch-1)*(n_datasets*n_minibatches) + (dataset-1)
         elif unit == 'minibatch':
-            return (int(epoch)-1)*int(n_datasets) + (int(dataset)-1)*int(n_minibatches) + (int(minibatch)-1)
+            return (epoch-1)*(n_datasets*n_minibatches) + (dataset-1)*n_minibatches + (minibatch-1)
 
 
     with open(log_file) as f:
@@ -112,7 +114,7 @@ def parse_log(log_file='logs/1.log', unit='minibatch'):
     return (train_costs, valid_costs, test_costs)
 
 if __name__ == '__main__':
-    train_costs, valid_costs, test_costs = parse_log('logs/1.log')
+    train_costs, valid_costs, test_costs = parse_log('logs/3.log', unit='dataset')
 
     fig = LearningCurve(
         costs_x=(train_costs[0], valid_costs[0], test_costs[0]),
