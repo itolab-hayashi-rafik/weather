@@ -47,12 +47,12 @@ class LSTM(RNN):
 
         f = T.nnet.sigmoid(T.dot(obs1, self.Wf) + self.bf)
         i = T.nnet.sigmoid(T.dot(obs1, self.Wi) + self.bi)
-        c = T.tanh(T.dot(obs1, self.Wc) + self.bc)
+        c = self.activation(T.dot(obs1, self.Wc) + self.bc)
         c = f * c_ + i * c
 
         obs2 = T.concatenate([c,  h_, x_], axis=1)
         o = T.nnet.sigmoid(T.dot(obs2, self.Wo) + self.bo)
-        h = o * T.tanh(c)
+        h = o * self.activation(c)
 
         return c, h
 
