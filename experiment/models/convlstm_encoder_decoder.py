@@ -15,16 +15,20 @@ import optimizers as O
 
 class EncoderDecoderConvLSTM(dnn.BaseModel):
     def __init__(self, numpy_rng, dataset_sizes, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1, 1, 3, 3)]):
+        # self.filter_shapes is of shape [(n_filters, n_feature_maps, filter_height, filter_width), ...]
         self.filter_shapes = filter_shapes
+        # self.x is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
         self.x = tensor5('x', dtype=theano.config.floatX)
+        # self.mask is of shape (n_samples, n_timesteps, n_feature_maps)
         self.mask = T.tensor3('mask', dtype=theano.config.floatX)
+        # self.y is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
         self.y = tensor5('y', dtype=theano.config.floatX)
 
         dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
-            input=self.x.dimshuffle(1,0,2,3,4),
-            mask=self.mask.dimshuffle(1,0,2),
-            output=self.y.dimshuffle(1,0,2,3,4),
+            input=self.x.dimshuffle(1,0,2,3,4), # dimshuffle to (n_timesteps, n_samples, n_feature_maps, height, width)
+            mask=self.mask.dimshuffle(1,0,2),   # dimshuffle to (n_timesteps, n_samples, n_feature_maps)
+            output=self.y.dimshuffle(1,0,2,3,4),# dimshuffle to (n_timesteps, n_samples, n_feature_maps, height, width)
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
             n_timesteps=t_out
@@ -59,8 +63,8 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         index = T.lscalar('index')
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.dnn.y
-        y_ = self.dnn.output
+        y = self.dnn.y # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        y_ = self.dnn.output # y_ is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
         n_samples = y.shape[1]
 
