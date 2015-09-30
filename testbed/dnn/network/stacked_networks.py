@@ -131,11 +131,11 @@ class StackedLSTM(StackedNetwork):
         self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
-        #assert(len(rval) == 3*self.n_layers)
-        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
-        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_h
+        # * rval[0]: (n_timesteps, n_samples, n_ins) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_ins) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_ins) の LSTM1_c
         # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_ins) の LSTMN_h
 
     @property
     def output(self):
@@ -214,19 +214,19 @@ class StackedLSTMDecoder(StackedLSTM):
         n_timesteps = self.n_timesteps
 
         # set initial states of layers: flatten the given state list
-        outputs_info = [self.x[-1]]
-        outputs_info += flatten(self.initial_hidden_states)
+        outputs_info  = flatten(self.initial_hidden_states)
+        outputs_info += [self.x[-1]]
 
         # feed forward calculation
-        def step(y, *prev_states):
-            y_ = y
+        def step(*prev_states):
+            y_ = prev_states[-1]
             new_states = []
             for i, layer in enumerate(self.layers):
                 c_, h_ = prev_states[2*i], prev_states[2*i+1]
                 layer_out = layer.step(1., y_, c_, h_)
                 _, y_ = layer_out # c, h
                 new_states += layer_out
-            return [y_] + new_states
+            return new_states + [y_]
 
         rval, updates = theano.scan(
             step,
@@ -236,12 +236,12 @@ class StackedLSTMDecoder(StackedLSTM):
         )
         self.rval = rval
 
-        # rval には n_timestamps 分の step() の戻り値 new_states が入っている
-        #assert(len(rval) == 3*self.n_layers)
-        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
+        # rval には n_timestamps 分の step() の戻り値 new_states + [y_] が入っている
+        # * rval[0]: (n_timesteps, n_samples, n_ins) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_ins) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_ins) の LSTM1_c
         # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_ins) の LSTMN_h
 
 
 class StackedConvLSTM(StackedNetwork):
@@ -286,10 +286,10 @@ class StackedConvLSTM(StackedNetwork):
 
         # Allocate symbolic variables for the data
         if input is None:
-            # the input minibatch data is of shape (n_timestep, n_samples, n_feature_maps, height, width)
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
             input = tensor5('x', dtype=theano.config.floatX)
         if mask is None:
-            # the input minibatch mask is of shape (n_timestep, n_samples, n_feature_maps)
+            # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
             mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
         if output is None:
             # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
@@ -334,7 +334,7 @@ class StackedConvLSTM(StackedNetwork):
             for i, layer in enumerate(self.layers):
                 c_, h_ = prev_states[2*i], prev_states[2*i+1]
                 layer_out = layer.step(m, x_, c_, h_)
-                _, x_ = layer_out # hidden, c
+                _, x_ = layer_out # c, h
                 new_states += layer_out
             return new_states
 
@@ -348,11 +348,11 @@ class StackedConvLSTM(StackedNetwork):
         self.rval = rval
 
         # rval には n_timestamps 分の step() の戻り値 new_states が入っている
-        #assert(len(rval) == 3*self.n_layers)
-        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
+        # * rval[0]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM1_c
         # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTMN_h
 
     @property
     def output(self):
@@ -463,12 +463,12 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         )
         self.rval = rval
 
-        # rval には n_timestamps 分の step() の戻り値 new_states が入っている
-        #assert(len(rval) == 3*self.n_layers)
-        # * rval[0]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_c
-        # * rval[1]: n_timesteps x n_samples x hidden_layer_sizes[0] の LSTM0_h
-        # * rval[2]: n_timesteps x n_samples x hidden_layer_sizes[1] の LSTM0_c
+        # rval には n_timestamps 分の step() の戻り値 new_states + [y_] が入っている
+        # * rval[0]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM1_c
         # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_output_feature_maps, height, width) の Conv(1x1) の出力
 
     @property
     def params(self):

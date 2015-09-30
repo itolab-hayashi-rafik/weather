@@ -26,12 +26,6 @@ class ConvLSTM(RNN):
          :param filter_shape: (number of filters, num input feature maps,
                                filter height, filter width)
 
-         :type poolsize: tuple of length 2
-         :param poolsize: poolsize
-
-         :type border_mode: String
-         :param border_mode: 'full' or 'valid'
-
          :param activation:
          :param clip_gradients:
          :param prefix:
@@ -46,12 +40,12 @@ class ConvLSTM(RNN):
         self.hidden_filter_shape = (filter_shape[0], filter_shape[0], filter_shape[2], filter_shape[3])
         self.output_shape = (filter_shape[0], input_shape[1], input_shape[2])
 
-        # LSTM receives in total:
-        # "num of output feature maps * input height * input width / pooling size" inputs
+        # ConvLSTM receives in total:
+        # "num of input feature maps * input height * input width" inputs
         n_in = numpy.prod(self.input_shape)
 
-        # the num of output units is the same as that of input, so that the ConvLSTM in the next layer
-        # can receive exactly the same number of input as this layer receives
+        # ConvLSTM outputs in total:
+        # "num of output feature maps * output height * output width" outputs
         # FIXME: consider downsampling, using poolsize
         n_out = numpy.prod(self.output_shape)
 
@@ -61,6 +55,7 @@ class ConvLSTM(RNN):
         return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
 
     def conv_x(self, input, filters):
+        # apply convolution for input-hidden connection
         return self.conv(
             input=input,
             filters=filters,
@@ -69,6 +64,7 @@ class ConvLSTM(RNN):
         )
 
     def conv_h(self, input, filters):
+        # apply convolution for hidden-hidden connection
         return self.conv(
             input=input,
             filters=filters,
@@ -88,6 +84,7 @@ class ConvLSTM(RNN):
         return x
 
     def setup(self):
+        # initialize weights
         Wxf_value = self.random_initialization(self.input_filter_shape)
         self.Wxf = self._shared(Wxf_value, name="Wxf", borrow=True)
         Whf_value = self.random_initialization(self.hidden_filter_shape)
@@ -123,8 +120,11 @@ class ConvLSTM(RNN):
         self.bo = self._shared(bo_value, name="bo", borrow=True)
 
     def step(self, m_, x_, c_, h_):
-        # このとき x_ は _step() の外の state_below, つまり n_timestamps * n_samples * dim_proj の入力 3d tensor から
-        # timestep ごとに切られた、n_samples x dim_proj の 1 タイムステップでの RNN への入力のミニバッチが入っている.
+        # assume x_ is of shape (n_samples, num of input feature maps, input height, input width),
+        # c_ is of shape (n_samples, num of hidden feature maps, output height, output width),
+        # h_ is of shape (n_samples, num of output feature maps, output height, output width).
+        # Note num of hidden feature maps = num of output feature maps,
+        # input height = output height, and input width = output width
 
         f = T.nnet.sigmoid(self.conv_x(x_, self.Wxf) + self.conv_h(h_, self.Whf) + self.Wcf.dimshuffle('x',0,'x','x') * c_ + self.bf.dimshuffle('x',0,'x','x'))
         i = T.nnet.sigmoid(self.conv_x(x_, self.Wxi) + self.conv_h(h_, self.Whi) + self.Wci.dimshuffle('x',0,'x','x') * c_ + self.bi.dimshuffle('x',0,'x','x'))
@@ -137,6 +137,7 @@ class ConvLSTM(RNN):
         return c, h
 
     def outputs_info(self, n_samples):
+        # initialize the output of step(): c, h
         return [
             dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, *self.output_shape), [False, False, False, False]), taps=[-1]), # c
             dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, *self.output_shape), [False, False, False, False]), taps=[-1]), # h

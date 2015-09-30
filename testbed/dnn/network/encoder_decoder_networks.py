@@ -178,7 +178,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             self.numpy_rng,
             theano_rng=self.theano_rng,
             input=self.x,
-            mask=self.mask, # FIXME: is this ok?
+            mask=self.mask, # FIXME: this is not ok.
             output=self.y,
             encoder=self.encoder,
             n_timesteps=self.n_timesteps
