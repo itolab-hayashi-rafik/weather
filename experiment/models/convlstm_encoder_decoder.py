@@ -62,11 +62,10 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         y = self.dnn.y
         y_ = self.dnn.output
 
-        n_timesteps = y.shape[0] # = self.t_out
         n_samples = y.shape[1]
 
         mse = T.mean((y - y_)**2) # Mean Square Error
-        cee = -T.sum(y * T.log(y_) + (1.-y) * T.log(1.-y_)) / (n_samples*n_timesteps) # Cross Entropy Error
+        cee = -T.sum(y * T.log(y_) + (1.-y) * T.log(1.-y_)) / n_samples # Cross Entropy Error
         cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
