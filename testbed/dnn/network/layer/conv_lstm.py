@@ -4,7 +4,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal import downsample
 
-from base import conv2d_keepshape
+from conv import conv2d_keepshape
 from rnn import RNN
 
 
