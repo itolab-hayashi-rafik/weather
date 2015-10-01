@@ -270,16 +270,12 @@ class StackedConvLSTM(StackedNetwork):
 
         :type filter_shapes: list of "tuple or list of length 4"
         :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
-
-        :type initial_hidden_states: list of initial hidden states
-        :param initial_hidden_states: list of initial hidden states
         :return:
         '''
         self.input_shape = input_shape
         self.filter_shapes = filter_shapes
         self.output_shape = (filter_shapes[-1][0], input_shape[1], input_shape[2])
         self.n_outs = numpy.prod(input_shape[1:])
-        self.conv_lstm_layers = []
         self.n_layers = len(filter_shapes)
 
         assert self.n_layers > 0
@@ -369,28 +365,88 @@ class StackedConvLSTM(StackedNetwork):
         return self.rval[-1]
 
 
-class StackedConvLSTMEncoder(StackedConvLSTM):
+class StackedConvLSTMEncoder(StackedNetwork):
     '''
     An implementation of Stacked ConvLSTM Encoder
     '''
+    def __init__(
+            self,
+            numpy_rng,
+            theano_rng=None,
+            name="StackedConvLSTMEncoder",
+            input=None,
+            mask=None,
+            output=None,
+            input_shape=(1,28,28),
+            filter_shapes=[(1,1,3,3)]
+    ):
+        '''
+        Initialize StackedConvLSTM
+        :param numpy_rng:
+        :param theano_rng:
 
-    def __init__(self, numpy_rng, theano_rng=None, name="StackedConvLSTMEncoder", input=None, mask=None, output=None, input_shape=(1, 28, 28), filter_shapes=[(1, 1, 3, 3)]):
+        :type input_shape: tuple or list of length 3
+        :param input_shape: (num input feature maps, image height, image width)
+
+        :type filter_shapes: list of "tuple or list of length 4"
+        :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
+        :return:
+        '''
+        self.input_shape = input_shape
+        self.filter_shapes = filter_shapes
+        self.output_shape = input_shape
+        self.n_ins = numpy.prod(self.input_shape)
+        self.n_outs = numpy.prod(self.output_shape)
+        self.n_layers = len(filter_shapes)
+
         # determine conv filter shape
-        n_output_feature_maps = input_shape[0] # num of output feature maps = num of encoder's input feature maps
         n_hiddens = sum([s[0] for s in filter_shapes]) # the number of total output feature maps (num of hidden states)
         self.conv_input_shape = (n_hiddens, input_shape[1], input_shape[2])
-        self.conv_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
+        self.conv_filter_shape = (input_shape[0], n_hiddens, 1, 1)
 
-        super(StackedConvLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, input_shape, filter_shapes)
+        assert self.n_layers > 0
+
+        # Allocate symbolic variables for the data
+        if input is None:
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            input = tensor5('x', dtype=theano.config.floatX)
+        if mask is None:
+            # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
+            mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
+        if output is None:
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            output = tensor5('y', dtype=theano.config.floatX)
+
+        super(StackedConvLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
+        # construct LSTM layers
+        for i, n_hidden in enumerate(self.filter_shapes):
+            # determine input size
+            if i == 0:
+                input_shape = self.input_shape
+            else:
+                input_shape = self.layers[-1].output_shape
+
+            # build an LSTM layer
+            layer = ConvLSTM(input_shape=input_shape,
+                             filter_shape=self.filter_shapes[i],
+                             activation=T.tanh,
+                             prefix="{0}_ConvLSTM{1}".format(self.name,i),
+                             nrng=self.numpy_rng,
+                             trng=self.theano_rng)
+            self.layers.append(layer)
+
+        # construct Conv(1x1) layer
         self.conv_layer = Conv(
             None,
             self.conv_input_shape,
             self.conv_filter_shape,
             prefix="{0}_ConvLayer".format(self.name)
         )
-        super(StackedConvLSTMEncoder, self).setup()
+
+        # setup feed forward formulation
+        self.setup_scan()
 
     def setup_scan(self):
         n_timesteps = self.x.shape[0]
@@ -441,6 +497,20 @@ class StackedConvLSTMEncoder(StackedConvLSTM):
         # * rval[-1]:(n_timesteps, n_samples, n_output_feature_maps, height, width) の Conv(1x1) の出力
 
     @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
+
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
+
+    @property
     def last_states(self):
         '''
         :return The states (c, h) of all ConvLSTMs at the last time interval T. This does not include
@@ -465,7 +535,7 @@ class StackedConvLSTMEncoder(StackedConvLSTM):
         self.conv_layer.params = param_list[len(self.conv_layer.params)-1:]
 
 
-class StackedConvLSTMDecoder(StackedConvLSTM):
+class StackedConvLSTMDecoder(StackedNetwork):
     '''
     An implementation of Stacked ConvLSTM Decoder
     '''
@@ -479,31 +549,76 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
                  encoder=None,
                  n_timesteps=1
     ):
+        '''
+        Initialize StackedConvLSTMDecoder
+        :param numpy_rng:
+        :param theano_rng:
+        :return:
+        '''
         assert encoder is not None
         input_shape = encoder.input_shape
         filter_shapes = encoder.filter_shapes
-        initial_hidden_states = encoder.last_states
+        output_shape = input_shape
 
+        self.input_shape = input_shape
+        self.filter_shapes = filter_shapes
+        self.output_shape = output_shape
+        self.initial_hidden_states = encoder.last_states
         self.encoder = encoder
-        self.initial_hidden_states = initial_hidden_states
         self.n_timesteps = n_timesteps
 
-        # determine conv filter shape
-        n_output_feature_maps = encoder.input_shape[0] # num of output feature maps = num of encoder's input feature maps
-        n_hiddens = sum([s[0] for s in encoder.filter_shapes]) # the number of total output feature maps (num of hidden states)
-        self.conv_input_shape = (n_hiddens, encoder.input_shape[1], encoder.input_shape[2])
-        self.conv_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
+        self.n_ins = numpy.prod(self.input_shape)
+        self.n_outs = numpy.prod(self.output_shape)
+        self.n_layers = len(self.filter_shapes)
 
-        super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, input_shape, filter_shapes)
+        # determine conv filter shape
+        n_hiddens = sum([s[0] for s in self.filter_shapes]) # the number of total output feature maps (num of hidden states)
+        self.conv_input_shape = (n_hiddens, input_shape[1], input_shape[2])
+        self.conv_filter_shape = (input_shape[0], n_hiddens, 1, 1)
+
+        assert self.n_layers > 0
+
+        # Allocate symbolic variables for the data
+        if input is None:
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            input = tensor5('x', dtype=theano.config.floatX)
+        if mask is None:
+            # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
+            mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
+        if output is None:
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            output = tensor5('y', dtype=theano.config.floatX)
+
+        super(StackedConvLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
 
     def setup(self):
+        # construct LSTM layers
+        for i, n_hidden in enumerate(self.filter_shapes):
+            # determine input size
+            if i == 0:
+                input_shape = self.input_shape
+            else:
+                input_shape = self.layers[-1].output_shape
+
+            # build an LSTM layer
+            layer = ConvLSTM(input_shape=input_shape,
+                             filter_shape=self.filter_shapes[i],
+                             activation=T.tanh,
+                             prefix="{0}_ConvLSTM{1}".format(self.name,i),
+                             nrng=self.numpy_rng,
+                             trng=self.theano_rng)
+            self.layers.append(layer)
+
+        # construct Conv(1x1) layer
         self.conv_layer = Conv(
             None,
             self.conv_input_shape,
             self.conv_filter_shape,
             prefix="{0}_ConvLayer".format(self.name)
         )
-        super(StackedConvLSTMDecoder, self).setup()
+
+        # setup feed forward formulation
+        self.setup_scan()
 
     def setup_scan(self):
         n_timesteps = self.n_timesteps
@@ -549,6 +664,20 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
         # * rval[2]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM1_c
         # ...
         # * rval[-1]:(n_timesteps, n_samples, n_output_feature_maps, height, width) の Conv(1x1) の出力
+
+    @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
+
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
 
     @property
     def params(self):
