@@ -141,12 +141,15 @@ class Experiment(object):
     def pred_error(self, dataset, iterator):
         valid_err = 0
         for _, valid_index in iterator:
+            n_samples = len(valid_index)
             y = [dataset[1][t] for t in valid_index]
             x = [dataset[0][t] for t in valid_index]
             x, mask, y = self.model.prepare_data(x, y)
 
             y_ = self.f_predict(x, mask)
-            err = numpy.mean((y - y_)**2)
+            mse = numpy.mean((y - y_)**2) # Mean Square Error
+            cee = -numpy.sum(y * numpy.log(y_) + (1.-y) * numpy.log(1.-y_)) / n_samples # Cross Entropy Error
+            err = cee
             valid_err += err
         valid_err = 1. - numpy.asarray(valid_err, dtype=theano.config.floatX) / len(dataset[0])
 
@@ -188,18 +191,30 @@ class Experiment(object):
 def unzip(params):
     return params # FIXME: need deepcopy
 
-def load_mnist_dataset(file):
+def load_mnist_dataset(file, patch_size):
     nda = numpy.load(file)
     input_raw_data = nda['input_raw_data']
     clips = nda['clips']
-    xs = [input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]] for i in xrange(clips.shape[1])]
-    ys = [input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]] for i in xrange(clips.shape[1])]
+    xs = [patchify(input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]], patch_size) for i in xrange(clips.shape[1])]
+    ys = [patchify(input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]], patch_size) for i in xrange(clips.shape[1])]
     return (ndarray(xs), ndarray(ys))
+
+def patchify(data, patch_size):
+    # dataset.shape: (n_timesteps, n_feature_maps, height, width)
+    n_patches = data.shape[1] * numpy.prod(patch_size)
+    # patch_shape: (n_timesteps, n_feature_maps, height, width)
+    patch_shape = (data.shape[0], n_patches, data.shape[2]/patch_size[0], data.shape[3]/patch_size[1])
+    patches = []
+    for j in xrange(patch_size[0]):
+        for i in xrange(patch_size[1]):
+            patches.append(data[:, :, j*patch_shape[2]:(j+1)*patch_shape[2], i*patch_shape[3]:(i+1)*patch_shape[3]])
+    return ndarray(patches).swapaxes(0,1).reshape(patch_shape)
 
 def exp_moving_mnist(
         train_datasets=['../data/moving_mnist/out/moving-mnist-train.npz'],
         valid_datasets=['../data/moving_mnist/out/moving-mnist-valid.npz'],
         test_datasets=['../data/moving_mnist/out/moving-mnist-test.npz'],
+        patch_size=(4,4),
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
         patience=10,  # Number of epoch to wait before early stop if no progress
@@ -237,9 +252,9 @@ def exp_moving_mnist(
 
     learning_rate = 1e-3
     for i, (train_dataset, valid_dataset, test_dataset) in enumerate(zip(train_datasets, valid_datasets, test_datasets)):
-        train_set = load_mnist_dataset(train_dataset)
-        valid_set = load_mnist_dataset(valid_dataset)
-        test_set = load_mnist_dataset(test_dataset)
+        train_set = load_mnist_dataset(train_dataset, patch_size)
+        valid_set = load_mnist_dataset(valid_dataset, patch_size)
+        test_set = load_mnist_dataset(test_dataset, patch_size)
 
         print("Iteration {0}".format(i))
         print("{0} train examples".format((len(train_set[0]))))
@@ -264,17 +279,17 @@ if __name__ == '__main__':
 
     exp = int(argv[1])
     if exp == 1:
-        filter_shapes = [(256,1,5,5)]
+        filter_shapes = [(256,16,5,5)]
     elif exp == 2:
-        filter_shapes = [(128,1,5,5),(128,128,5,5)]
+        filter_shapes = [(128,16,5,5),(128,128,5,5)]
     elif exp == 3:
-        filter_shapes = [(128,1,5,5),(64,128,5,5),(64,64,5,5)]
+        filter_shapes = [(128,16,5,5),(64,128,5,5),(64,64,5,5)]
     elif exp == 4:
-        filter_shapes = [(128,1,9,9),(128,128,9,9)]
+        filter_shapes = [(128,16,9,9),(128,128,9,9)]
     elif exp == 5:
-        filter_shapes = [(128,1,9,9),(64,128,9,9),(64,64,9,9)]
+        filter_shapes = [(128,16,9,9),(64,128,9,9),(64,64,9,9)]
     elif exp == 6:
-        filter_shapes = [(32,1,5,5)]
+        filter_shapes = [(32,16,5,5)]
     else:
         raise NotImplementedError
 
