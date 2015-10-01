@@ -159,7 +159,7 @@ def rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, inde
     return f_grad_shared, f_update
 
 
-def my_rmsprop(lr, params, grads, x, mask, y, cost):
+def my_rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, index, batch_size, cost):
     '''
     An implementation of RMSProp
     :param lr:
@@ -184,9 +184,15 @@ def my_rmsprop(lr, params, grads, x, mask, y, cost):
     upd_w_list = [(w, new_w) for (w, new_w) in zip (params, new_w_list)]
 
     # build a function to calculate r
-    f_grad_shared = theano.function([x, mask, y], cost,
+    f_grad_shared = theano.function([index], cost,
                                     updates=upd_r_list,
+                                    givens={
+                                        x: shared_x[index * batch_size: (index + 1) * batch_size],
+                                        mask: shared_mask[index * batch_size: (index + 1) * batch_size],
+                                        y: shared_y[index * batch_size: (index + 1) * batch_size]
+                                    },
                                     name='rmsprop_f_grad_shared')
+
     # build a function to calculate and update params w
     f_update = theano.function([lr], [],
                                updates=upd_w_list,
