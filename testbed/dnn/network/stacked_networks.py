@@ -152,11 +152,10 @@ class StackedLSTM(StackedNetwork):
         return self.rval[-1]
 
 
-class StackedLSTMEncoder(StackedLSTM):
+class StackedLSTMEncoder(StackedNetwork):
     '''
     An implementation of Stacked LSTM Encoder
     '''
-
     def __init__(self,
                  numpy_rng,
                  theano_rng=None,
@@ -165,16 +164,105 @@ class StackedLSTMEncoder(StackedLSTM):
                  mask=None,
                  output=None,
                  n_ins=784,
-                 hidden_layers_sizes=[500, 500]):
-
+                 hidden_layers_sizes=[500, 500],
+                 ):
         # in order to construct Encoder-Decoder network properly,
         # we need the output of the same size as the input
         assert n_ins == hidden_layers_sizes[0] and n_ins == hidden_layers_sizes[-1]
 
-        super(StackedLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, n_ins, hidden_layers_sizes)
+        self.n_ins = n_ins
+        self.hidden_layers_sizes = hidden_layers_sizes
+        self.n_layers = len(hidden_layers_sizes)
+
+        # Allocate symbolic variables for the data
+        if input is None:
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            input = T.tensor3('x', dtype=theano.config.floatX)
+        if mask is None:
+            # the input minibatch mask is of shape (n_samples, n_ins)
+            mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
+        if output is None:
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            output = T.tensor3('y', dtype=theano.config.floatX)
+
+        super(StackedLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+
+    def setup(self):
+        # construct LSTM layers
+        self.layers = []
+        for i, n_hidden in enumerate(self.hidden_layers_sizes):
+            # determine input size
+            if i == 0:
+                input_size = self.n_ins
+            else:
+                input_size = self.hidden_layers_sizes[i - 1]
+
+            # build an LSTM layer
+            layer = LSTM(n_in=input_size,
+                         n_out=self.hidden_layers_sizes[i],
+                         activation=T.tanh,
+                         prefix="{0}_LSTM{1}".format(self.name,i),
+                         nrng=self.numpy_rng,
+                         trng=self.theano_rng)
+            self.layers.append(layer)
+
+        self.setup_scan()
+
+    def setup_scan(self):
+        n_timesteps = self.x.shape[0]
+        n_samples = self.x.shape[1]
+
+        outputs_info = []
+        for layer in self.layers:
+            outputs_info += layer.outputs_info(n_samples)
+
+        # feed forward calculation
+        def step(m, x, *prev_states):
+            x_ = x
+            new_states = []
+            for i, layer in enumerate(self.layers):
+                c_, h_ = prev_states[2*i], prev_states[2*i+1]
+                layer_out = layer.step(m, x_, c_, h_)
+                _, x_ = layer_out # c, h
+                new_states += layer_out
+            return new_states
+
+        rval, updates = theano.scan(
+            step,
+            sequences=[self.mask, self.x],
+            n_steps=n_timesteps,
+            outputs_info=outputs_info,
+            name="{0}_scan".format(self.name)
+        )
+        self.rval = rval
+
+        # rval には n_timestamps 分の step() の戻り値 new_states が入っている
+        # * rval[0]: (n_timesteps, n_samples, n_ins) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_ins) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_ins) の LSTM1_c
+        # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_ins) の LSTMN_h
+
+    @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
+
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
 
     @property
     def last_states(self):
+        '''
+        :return The states (c, h) of all ConvLSTMs at the last time interval T. This does not include
+                the output of the encoder network, namely the output of Conv(1x1) layer
+        '''
         return [
             [
                 self.rval[2*i][-1],     # LSTM[i].c[T]
@@ -183,7 +271,7 @@ class StackedLSTMEncoder(StackedLSTM):
         ]
 
 
-class StackedLSTMDecoder(StackedLSTM):
+class StackedLSTMDecoder(StackedNetwork):
     '''
     An implementation of Stacked LSTM Decoder
     '''
@@ -201,21 +289,52 @@ class StackedLSTMDecoder(StackedLSTM):
         assert encoder is not None
         assert n_timesteps is not None
 
-        n_ins = encoder.n_ins
-        hidden_layers_sizes = encoder.hidden_layers_sizes
-        initial_hidden_states = encoder.last_states
-
-        self.initial_hidden_states = initial_hidden_states
+        self.n_ins = encoder.n_ins
+        self.hidden_layers_sizes = encoder.hidden_layers_sizes
+        self.initial_hidden_states = encoder.last_states
+        self.encoder = encoder
         self.n_timesteps = n_timesteps
 
-        super(StackedLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, n_ins, hidden_layers_sizes)
+        # Allocate symbolic variables for the data
+        if input is None:
+            # the input minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            input = T.tensor3('x', dtype=theano.config.floatX)
+        if mask is None:
+            # the input minibatch mask is of shape (n_samples, n_ins)
+            mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
+        if output is None:
+            # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
+            output = T.tensor3('y', dtype=theano.config.floatX)
+
+        super(StackedLSTMDecoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+
+    def setup(self):
+        # construct LSTM layers
+        self.layers = []
+        for i, n_hidden in enumerate(self.hidden_layers_sizes):
+            # determine input size
+            if i == 0:
+                input_size = self.n_ins
+            else:
+                input_size = self.hidden_layers_sizes[i - 1]
+
+            # build an LSTM layer
+            layer = LSTM(n_in=input_size,
+                         n_out=self.hidden_layers_sizes[i],
+                         activation=T.tanh,
+                         prefix="{0}_LSTM{1}".format(self.name,i),
+                         nrng=self.numpy_rng,
+                         trng=self.theano_rng)
+            self.layers.append(layer)
+
+        self.setup_scan()
 
     def setup_scan(self):
         n_timesteps = self.n_timesteps
 
         # set initial states of layers: flatten the given state list
         outputs_info  = flatten(self.initial_hidden_states)
-        outputs_info += [self.x[-1]]
+        outputs_info += [self.encoder.outputs[-1]]
 
         # feed forward calculation
         def step(*prev_states):
@@ -242,6 +361,21 @@ class StackedLSTMDecoder(StackedLSTM):
         # * rval[2]: (n_timesteps, n_samples, n_ins) の LSTM1_c
         # ...
         # * rval[-1]:(n_timesteps, n_samples, n_ins) の LSTMN_h
+
+    @property
+    def output(self):
+        '''
+        :return: the output of the last layer at the last time period
+        '''
+        return self.rval[-1][-1]
+
+    @property
+    def outputs(self):
+        '''
+        :return: the outputs of the last layer from time period 0 to T
+        '''
+        return self.rval[-1]
+
 
 
 class StackedConvLSTM(StackedNetwork):
