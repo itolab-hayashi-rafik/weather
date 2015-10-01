@@ -342,7 +342,7 @@ class StackedConvLSTM(StackedNetwork):
             step,
             sequences=[self.mask, self.x],
             n_steps=n_timesteps,
-            outputs_info=outputs_info, # changed: dim_proj --> self.n_ins --> hidden_layer_sizes[i]
+            outputs_info=outputs_info,
             name="{0}_scan".format(self.name)
         )
         self.rval = rval
@@ -375,16 +375,94 @@ class StackedConvLSTMEncoder(StackedConvLSTM):
     '''
 
     def __init__(self, numpy_rng, theano_rng=None, name="StackedConvLSTMEncoder", input=None, mask=None, output=None, input_shape=(1, 28, 28), filter_shapes=[(1, 1, 3, 3)]):
+        # determine conv filter shape
+        n_output_feature_maps = input_shape[0] # num of output feature maps = num of encoder's input feature maps
+        n_hiddens = sum([s[0] for s in filter_shapes]) # the number of total output feature maps (num of hidden states)
+        self.conv_input_shape = (n_hiddens, input_shape[1], input_shape[2])
+        self.conv_filter_shape = (n_output_feature_maps, n_hiddens, 1, 1)
+
         super(StackedConvLSTMEncoder, self).__init__(numpy_rng, theano_rng, name, input, mask, output, input_shape, filter_shapes)
+
+    def setup(self):
+        self.conv_layer = Conv(
+            None,
+            self.conv_input_shape,
+            self.conv_filter_shape,
+            prefix="{0}_ConvLayer".format(self.name)
+        )
+        super(StackedConvLSTMEncoder, self).setup()
+
+    def setup_scan(self):
+        n_timesteps = self.x.shape[0]
+        n_samples = self.x.shape[1]
+
+        # set initial states of layers
+        outputs_info = []
+        for layer in self.layers:
+            outputs_info += layer.outputs_info(n_samples)
+        # set initial output of conv layer
+        outputs_info += [
+            dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, *self.output_shape), [False, False, False, False]), taps=[-1])
+        ]
+
+        # feed forward calculation
+        def step(m, x, *prev_states):
+            x_ = x
+            new_states = []
+            for i, layer in enumerate(self.layers):
+                c_, h_ = prev_states[2*i], prev_states[2*i+1]
+                layer_out = layer.step(m, x_, c_, h_)
+                _, x_ = layer_out # c, h
+                new_states += layer_out
+
+            # concatenate outputs of each ConvLSTM
+            y_ = T.concatenate(new_states[1::2], axis=1) # concatenate h_ outputs of all layers
+            self.conv_layer.input = y_ # a bit hacky way... should be fixed
+            y_ = self.conv_layer.output
+
+            # parameters to pass to next step are: hidden states and the output of the
+            # decoder at this time interval (the input of the decoder at next time interval)
+            return new_states + [y_]
+
+        rval, updates = theano.scan(
+            step,
+            sequences=[self.mask, self.x],
+            n_steps=n_timesteps,
+            outputs_info=outputs_info,
+            name="{0}_scan".format(self.name)
+        )
+        self.rval = rval
+
+        # rval には n_timestamps 分の step() の戻り値 new_states + [y_] が入っている
+        # * rval[0]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_c
+        # * rval[1]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM0_h
+        # * rval[2]: (n_timesteps, n_samples, n_output_feature_maps, height, width) の LSTM1_c
+        # ...
+        # * rval[-1]:(n_timesteps, n_samples, n_output_feature_maps, height, width) の Conv(1x1) の出力
 
     @property
     def last_states(self):
+        '''
+        :return The states (c, h) of all ConvLSTMs at the last time interval T. This does not include
+                the output of the encoder network, namely the output of Conv(1x1) layer
+        '''
         return [
             [
                 self.rval[2*i][-1],     # ConvLSTM[i].c[T]
                 self.rval[2*i+1][-1],   # ConvLSTM[i].h[T]
             ] for i in xrange(self.n_layers)
         ]
+
+    @property
+    def params(self):
+        params  = StackedConvLSTM.params.fget(self)
+        params += self.conv_layer.params
+        return params
+
+    @params.setter
+    def params(self, param_list):
+        StackedConvLSTM.params.fset(self, param_list[:-len(self.conv_layer.params)])
+        self.conv_layer.params = param_list[len(self.conv_layer.params)-1:]
 
 
 class StackedConvLSTMDecoder(StackedConvLSTM):
@@ -432,7 +510,9 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
 
         # set initial states of layers: flatten the given state list
         outputs_info  = flatten(self.initial_hidden_states)
-        outputs_info += [self.x[-1]]
+        # outputs_info += [self.x[-1]]
+        # feed the last output of Encoder network as the first input of Decoder network
+        outputs_info += [self.encoder.outputs[-1]]
 
         # feed forward calculation
         def step(*prev_states):
@@ -449,7 +529,7 @@ class StackedConvLSTMDecoder(StackedConvLSTM):
             # concatenate outputs of each ConvLSTM
             y_ = T.concatenate(new_states[1::2], axis=1) # concatenate h_ outputs of all layers
             self.conv_layer.input = y_ # a bit hacky way... should be fixed
-            y_ = self.conv_layer.output
+            y_ = self.conv_layer.output # apply Conv(1x1) to outputs of all ConvLSTM
 
             # parameters to pass to next step are: hidden states and the output of the
             # decoder at this time interval (the input of the decoder at next time interval)
