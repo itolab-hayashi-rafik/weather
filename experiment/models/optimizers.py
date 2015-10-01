@@ -157,3 +157,40 @@ def rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, inde
                                name='rmsprop_f_update')
 
     return f_grad_shared, f_update
+
+
+def my_rmsprop(lr, params, grads, x, mask, y, cost):
+    '''
+    An implementation of RMSProp
+    :param lr:
+    :param params:
+    :param grads:
+    :param x:
+    :param mask:
+    :param y:
+    :param cost:
+    :return:
+    '''
+    decay_rate = 0.9
+    epsilon = 1E-6
+
+    # initialize running grads
+    r_list = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
+
+    # build update lists
+    new_r_list = [decay_rate*r + (1-decay_rate)*tensor.square(g) for (g, r) in zip(grads, r_list)]
+    upd_r_list = [(r, new_r) for (r, new_r) in zip(r_list, new_r_list)]
+    new_w_list = [w - (lr / (tensor.sqrt(new_r)+epsilon)) * g for (g, w, new_r) in zip(grads, w_list, new_r_list)]
+    upd_w_list = [(w, new_w) for (w, new_w) in zip (params, new_w_list)]
+
+    # build a function to calculate r
+    f_grad_shared = theano.function([x, mask, y], cost,
+                                    updates=upd_r_list,
+                                    name='rmsprop_f_grad_shared')
+    # build a function to calculate and update params w
+    f_update = theano.function([lr], [],
+                               updates=upd_w_list,
+                               on_unused_input='ignore',
+                               name='rmsprop_f_update')
+
+    return (f_grad_shared, f_update)

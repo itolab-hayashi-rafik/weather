@@ -56,7 +56,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         params['filter_shapes'] = self.filter_shapes
         return params
 
-    def build_finetune_function(self, optimizer=O.rmsprop, batch_size=16, valid_batch_size=64):
+    def build_finetune_function(self, optimizer=O.my_rmsprop, batch_size=16, valid_batch_size=64):
         if self.finetune_functions is not None:
             return self.finetune_functions
 
