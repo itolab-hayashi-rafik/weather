@@ -180,12 +180,11 @@ def my_rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, i
     # build update lists
     new_r_list = [(decay_rate*r + (1-decay_rate)*tensor.square(g)) for (g, r) in zip(grads, r_list)]
     upd_r_list = [(r, new_r) for (r, new_r) in zip(r_list, new_r_list)]
-    new_w_list = [(w - (lr / (tensor.sqrt(new_r)+epsilon))) * g for (g, w, new_r) in zip(grads, params, new_r_list)]
-    upd_w_list = [(w, new_w) for (w, new_w) in zip (params, new_w_list)]
+    upd_w_list = [(w, (lr / (tensor.sqrt(r)+epsilon)) * g) for (w, g, r) in zip(params, grads, r_list)]
 
     # build a function to calculate r
     f_grad_shared = theano.function([index], cost,
-                                    updates=new_r_list + upd_r_list,
+                                    updates=upd_r_list,
                                     givens={
                                         x: shared_x[index * batch_size: (index + 1) * batch_size],
                                         mask: shared_mask[index * batch_size: (index + 1) * batch_size],
@@ -195,7 +194,7 @@ def my_rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, i
 
     # build a function to calculate and update params w
     f_update = theano.function([lr], [],
-                               updates=new_w_list + upd_w_list,
+                               updates=upd_w_list,
                                on_unused_input='ignore',
                                name='rmsprop_f_update')
 
