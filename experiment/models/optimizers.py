@@ -175,16 +175,16 @@ def my_rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, i
     epsilon = 1E-6
 
     # initialize running grads
-    g_list = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
-    r_list = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
+    zipped_grads = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
+    running_grads = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
 
     # build updates for g_list, r_list
-    upd_g_list = [(g, new_g) for (g, new_g) in zip(g_list, grads)]
-    upd_r_list = [(r, (decay_rate*r + (1-decay_rate)*tensor.square(g))) for (g, r) in zip(grads, r_list)]
+    zgup = [(zg, g) for zg, g in zip(zipped_grads, grads)]
+    rgup = [(rg, decay_rate * rg + (1-decay_rate) * (g ** 2)) for rg, g in zip(running_grads, grads)]
 
-    # build a function to calculate r
+    # build a function to update g_list and r_list
     f_grad_shared = theano.function([index], cost,
-                                    updates=upd_g_list + upd_r_list,
+                                    updates=zgup + rgup,
                                     givens={
                                         x: shared_x[index * batch_size: (index + 1) * batch_size],
                                         mask: shared_mask[index * batch_size: (index + 1) * batch_size],
@@ -193,11 +193,13 @@ def my_rmsprop(lr, params, grads, x, mask, y, shared_x, shared_mask, shared_y, i
                                     name='rmsprop_f_grad_shared')
 
     # build updates for params
-    upd_params = [(w, (lr*g/tensor.sqrt(r + epsilon))) for (w, g, r) in zip(params, g_list, r_list)]
+    updir = [theano.shared(p.get_value() * numpy_floatX(0.)) for p in params]
+    updir_new = [(ud, (lr*zg/tensor.sqrt(rg + epsilon))) for (ud, zg, rg) in zip(updir, zipped_grads, running_grads)]
+    param_up = [(p, p - udn[1])
+                for p, udn in zip(params, updir_new)]
 
-    # build a function to calculate and update params w
-    f_update = theano.function([lr], [],
-                               updates=upd_params,
+    # build a function to update the model params
+    f_update = theano.function([lr], [], updates=param_up,
                                on_unused_input='ignore',
                                name='rmsprop_f_update')
 
