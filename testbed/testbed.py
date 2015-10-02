@@ -208,6 +208,7 @@ class TestBed(object):
         現在持っているデータセットで学習する
         :return:
         '''
+        print('finetune: learning_rate={0}'.format(learning_rate))
         dataset = numpy.asarray(self.dataset, dtype=theano.config.floatX)
         idx = range(self.window_size-self.t_in-self.t_out+1)
         numpy.random.shuffle(idx)
