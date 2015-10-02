@@ -36,11 +36,25 @@ class EncoderDecoderNetwork(StandaloneNetwork):
 
     @property
     def output(self):
-        return self.decoder.output
+        return self.outputs[-1]
 
     @property
     def outputs(self):
-        return self.decoder.outputs
+        '''
+        output [z_0, ..., z_T] in the following diagram
+
+            *          *         z_0        z_1        z_2           z_T         *
+            ^          ^          ^          ^          ^             ^          ^
+            |          |          |          |          |             |          |
+        [Encoder]->[Encoder]->[Encoder]->[Decoder]->[Decoder]...->[Decoder]->[Decoder]
+            ^          ^          ^          ^          ^             ^          ^
+            |          |          |          |          |             |          |
+           x_0        x_1        x_2        z_0        z_1         z_(T-1)      z_T
+
+        :return: [z_0, ..., z_T]
+        '''
+        n_input_timesteps = self.x.shape[0]
+        return T.concatenate([self.encoder.outputs, self.decoder.outputs], axis=0)[n_input_timesteps-1:-1]
 
     @property
     def params(self):
