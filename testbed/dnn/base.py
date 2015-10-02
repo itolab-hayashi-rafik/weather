@@ -71,7 +71,7 @@ class BaseModel(Model):
     def build_pretrain_function(self, *args, **kwargs):
         return None
 
-    def build_finetune_function(self, optimizer=O.adadelta):
+    def build_finetune_function(self, optimizer=O.my_rmsprop):
         '''
         build the finetune function
         :param optimizer: an optimizer to use
