@@ -16,7 +16,7 @@ from generator import ConstantGenerator, SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=10, t_in=5, w=10, h=10, d=1, t_out=1, hidden_layers_sizes=[3]):
+    def __init__(self, window_size=10, t_in=3, w=10, h=10, d=1, t_out=3, hidden_layers_sizes=[3]):
         '''
         初期化する
         :param window_size:
@@ -314,7 +314,9 @@ class TestBed(object):
             x, mask, y = self.model.prepare_data(x, y)
             y_ = self.f_predict(x, mask)
 
-            cost = numpy.mean((y - y_)**2)
+            n_samples = y.shape[1]
+
+            cost = -numpy.sum(y * numpy.log(y_) + (1.-y) * numpy.log(1.-y_)) / n_samples
             costs.append(cost)
 
         return costs
@@ -324,10 +326,12 @@ class TestBed(object):
         現在のデータセットから将来のデータを予測する
         :return:
         '''
+        idx = len(self.dataset)-self.t_in-self.t_out+1
         dataset = numpy.asarray(self.dataset, dtype=theano.config.floatX)
-        x = self._make_input(dataset, [len(dataset)-self.t_in-self.t_out+1])
+        x = self._make_input(dataset, [idx])
         x, mask, _ = self.model.prepare_data(x, None)
-        y = self.f_predict(x, mask)
+        y = self.f_predict(x, mask) # f_predict returns output of (n_timesteps, 1, n_feature_maps, height, width)
+        y = y.swapaxes(0,1)[0]      # so we need to swap axes and get (n_timesteps, n_feature_maps, height, width)
         y = y.reshape((self.t_out, self.d, self.h, self.w))
         return y
 

@@ -209,17 +209,6 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             has_input=False
         )
 
-        # Conv(1x1) layer
-        self.conv_layer = Conv(
-            None,
-            self.conv_input_shape,
-            self.conv_filter_shape,
-            prefix="{0}_ConvLayer".format(self.name)
-        )
-
-        self.setup_scan()
-
-    def setup_scan(self):
         '''
         output [z_0, ..., z_T] in the following diagram
 
@@ -238,26 +227,28 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
            x_0        x_1        x_2
 
         '''
+
         # concatenate the outputs of encoder and decoder to get [z_0, ..., z_T]
         n_input_timesteps = self.x.shape[0]
-        sequences = T.concatenate([self.encoder.outputs_all_layers, self.decoder.outputs_all_layers], axis=0)[n_input_timesteps-1:-1]
-        n_output_timesteps = sequences.shape[0]
+        conc = T.concatenate([self.encoder.outputs_all_layers, self.decoder.outputs_all_layers], axis=0)[n_input_timesteps-1:-1]
 
-        # build function
-        def step(u):
-            self.conv_layer.input = u
-            z = self.conv_layer.output
-            return z
+        # Here, the concatenated 5D tensor is of shape (n_timesteps, n_samples, n_hidden_feature_maps, height, width).
+        # In order to input this to the Conv(1x1) network, we reshape this to 4D tensor of shape
+        # (n_timesteps*n_samples, n_hidden_feature_maps, height, width)
+        conv_input = conc.reshape((conc.shape[0]*conc.shape[1], conc.shape[2], conc.shape[3], conc.shape[4]))
 
-        # feed [u_0, ..., u_T] to step() and get [z_0, ..., z_T]
-        rval, updates = theano.scan(
-            step,
-            sequences=sequences,
-            n_steps=n_output_timesteps,
-            name="{0}_scan".format(self.name)
+        # Conv(1x1) layer
+        self.conv_layer = Conv(
+            conv_input,
+            self.conv_input_shape,
+            self.conv_filter_shape,
+            prefix="{0}_ConvLayer".format(self.name)
         )
-        self.rval = rval
-        self.updates = updates
+        conv_output = self.conv_layer.output
+
+        # the output of Conv(1x1) layer is of shape (n_timesteps*n_samples, n_input_feature_maps, height, width),
+        # so we reshape it to (n_timesteps, n_samples, n_input_feature_maps, height, width)
+        self.net_output = conv_output.reshape((conc.shape[0], conc.shape[1]) + self.conv_layer.output_shape)
 
     @property
     def output(self):
@@ -265,7 +256,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
 
     @property
     def outputs(self):
-        return self.rval
+        return self.net_output
 
     @property
     def params(self):

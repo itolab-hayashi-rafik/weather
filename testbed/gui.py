@@ -70,13 +70,13 @@ class Worker(QtCore.QThread):
             self.stop_flg = False
         self.started.emit()
 
-        for i,y in enumerate(self.gen):
+        for i,yt in enumerate(self.gen):
             # predict
             y_preds = self.bed.predict()
-            #print("{0}: y={1}, y_pred={2}".format(i, y, y_pred))
+            print("{0}: yt={1}, y_pred={2}".format(i, yt, y_preds))
 
-            self.bed.supply(y)
-            self.vis.append_data(y, y_preds)
+            self.bed.supply(yt)
+            self.vis.append_data(yt, y_preds)
 
             if i % self.pretrain_step == 0 and 0 < self.pretrain_epochs:
                 # pretrain
@@ -91,7 +91,7 @@ class Worker(QtCore.QThread):
 
             self.vis.append_cost(train_cost, valid_cost, test_cost)
 
-            self.updated.emit(y, y_preds)
+            self.updated.emit(yt, y_preds)
 
             time.sleep(self.delay)
 
