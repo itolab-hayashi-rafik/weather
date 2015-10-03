@@ -79,10 +79,14 @@ class BaseModel(Model):
         '''
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.dnn.y
-        y_ = self.dnn.output
+        y = self.dnn.y # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        y_ = self.dnn.output # y_ is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
-        cost = T.mean((y - y_)**2)
+        n_samples = y.shape[1]
+
+        mse = T.mean((y - y_)**2) # Mean Square Error
+        cee = T.sum(T.nnet.binary_crossentropy(y_, y)) / n_samples # Cross Entropy Error
+        cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
 
