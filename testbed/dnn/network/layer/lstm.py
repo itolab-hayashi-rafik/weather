@@ -39,7 +39,7 @@ class LSTM(RNN):
         self.bi = self._shared(bi_value, name="bi", borrow=True)
 
         if self.has_input:
-            Wc_value = self.random_initialization((2*self.n_out, self.n_out))
+            Wc_value = self.random_initialization((self.n_out, self.n_out))
             self.Wc = self._shared(Wc_value, name="Wc", borrow=True)
         else:
             Wc_value = self.random_initialization((self.n_out, self.n_out))
