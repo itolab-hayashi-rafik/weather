@@ -17,16 +17,16 @@ class EncoderDecoderNetwork(StandaloneNetwork):
                  name="EncoderDecoderNetwork",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  is_rnn=False
                  ):
         self.encoder = None
         self.decoder = None
 
         assert input is not None
-        assert output is not None
+        assert target is not None
 
-        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn)
+        super(EncoderDecoderNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn)
 
     def setup(self):
         '''
@@ -77,7 +77,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
                  name="EncoderDecoderLSTM",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  n_ins=784,
                  hidden_layers_sizes=[500, 500],
                  n_timesteps=1
@@ -88,7 +88,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
         :param theano_rng:
         :param input: input tensor of shape (n_timesteps, n_samples, n_ins)
         :param mask: input mask of shape (n_timesteps, n_samples)
-        :param output: output tensor of shape (n_timesteps, n_samples, n_ins)
+        :param target: output tensor of shape (n_timesteps, n_samples, n_ins)
         :param n_ins:
         :param hidden_layers_sizes:
         :param n_timesteps: num of output timesteps
@@ -105,11 +105,11 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
         if mask is None:
             # the input minibatch mask is of shape (n_samples, n_ins)
             mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
-        if output is None:
+        if target is None:
             # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
-            output = T.tensor3('y', dtype=theano.config.floatX)
+            target = T.tensor3('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn=True)
 
     def setup(self):
         # Encoder network
@@ -119,7 +119,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
             name="StackedLSTMEncoder",
             input=self.x,
             mask=self.mask,
-            output=self.y,
+            target=self.y,
             n_ins=self.n_ins,
             hidden_layers_sizes=self.hidden_layers_sizes,
         )
@@ -129,7 +129,7 @@ class EncoderDecoderLSTM(EncoderDecoderNetwork):
             numpy_rng=self.numpy_rng,
             theano_rng=self.theano_rng,
             name="StackedLSTMDecoder",
-            output=self.y,
+            target=self.y,
             hidden_layers_sizes=self.hidden_layers_sizes,
             n_timesteps=self.n_timesteps,
             initial_hidden_states=self.encoder.last_states,
@@ -144,7 +144,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
                  name="EncoderDecoderConvLSTM",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  input_shape=(1,28,28),
                  filter_shapes=[(1,1,3,3)],
                  n_timesteps=1
@@ -155,7 +155,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
         :param theano_rng:
         :param input: input 5D tensor of shape (n_timesteps, n_samples, n_feature_maps, height, width)
         :param mask: input mask of shape (n_timesteps, n_samples, n_feature_maps)
-        :param output: output 5D tensor of shape (n_timestamps, n_samples, n_feature_maps, height, width)
+        :param target: target 5D tensor of shape (n_timestamps, n_samples, n_feature_maps, height, width)
         :param input_shape: (num input feature maps, input height, input width)
         :param filter_shapes: [(number of filters, num input feature maps, filter height, filter width)]
         :param num of output timesteps
@@ -177,11 +177,11 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
         if mask is None:
             # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
             mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
-        if output is None:
-            # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
-            output = tensor5('y', dtype=theano.config.floatX)
+        if target is None:
+            # the target minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            target = tensor5('y', dtype=theano.config.floatX)
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn=True)
 
     def setup(self):
         # Encoder network
@@ -191,7 +191,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             name="StackedConvLSTMEncoder",
             input=self.x,
             mask=self.mask,
-            output=self.y,
+            target=self.y,
             input_shape=self.input_shape,
             filter_shapes=self.filter_shapes
         )
@@ -201,7 +201,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
             numpy_rng=self.numpy_rng,
             theano_rng=self.theano_rng,
             name="StackedConvLSTMDecoder",
-            output=self.y,
+            target=self.y,
             input_shape=self.input_shape,
             filter_shapes=self.filter_shapes,
             n_timesteps=self.n_timesteps,
