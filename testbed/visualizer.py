@@ -20,7 +20,7 @@ class ImageMap(object):
             self.fig.canvas.mpl_connect('button_press_event', onclick)
         self.im = plt.imshow(numpy.zeros((w,h)), cmap=plt.cm.jet, vmin=0, vmax=1)
         self.colorbar = plt.colorbar()
-        plt.show(block=False)
+        self.fig.show()
 
     def update(self):
         self.im.set_data(self.mapdata)
@@ -44,7 +44,7 @@ class LineGraph(object):
         for i, (x,y) in enumerate(self.xydata):
             self.plots.append(self.ax.plot(x, y, LINE_DEFS[i % len(LINE_DEFS)])) # FIXME: line color
 
-        plt.show(block=False)
+        self.fig.show()
 
     def update(self):
         xmin, xmax = (None, None)
@@ -183,17 +183,13 @@ class Visualizer:
         self.ds = Dataset(t_out, xlim, clim)
 
         # y
-        def y_data():
-            return self.ds.y[-1][VIS_DEPTH]
-        self.im_y = YMap(y_data, w, h, fignum, self.onclick)
+        self.im_y = YMap(lambda: self.ds.y[-1][VIS_DEPTH], w, h, fignum, self.onclick)
         fignum += 1
 
         # y_preds
         self.im_y_preds = []
         for i in xrange(t_out):
-            def y_pred_data():
-                return self.ds.y_preds[-1][i][VIS_DEPTH]
-            self.im_y_preds.append(YMap(y_pred_data, w, h, fignum, self.onclick))
+            self.im_y_preds.append(YMap(lambda i=i: self.ds.y_preds[-1][i][VIS_DEPTH], w, h, fignum, self.onclick))
             fignum += 1
 
         # learning curve
@@ -244,15 +240,17 @@ if __name__ == '__main__':
     delay = 0.1
     gen = SinGenerator(w=w, h=h, d=1)
     # gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
-    vis = Visualizer(w=w, h=h, t_out=1)
+    vis = Visualizer(w=w, h=h, t_out=2)
 
     time.sleep(10)
-    for i,y in enumerate(gen):
-        print("{0}: max={1}".format(i,numpy.max(y)))
-        vis.append_data(y, numpy.asarray([y]))
+    ytm1 = gen.next()
+    for i,yt in enumerate(gen):
+        print("{0}: max={1}".format(i,numpy.max(yt)))
+        vis.append_data(yt, numpy.asarray([ytm1, yt]))
         vis.append_cost(1.0/float(i+1), 2.0/float(i+1), None)
 
         if i == 10:
             vis.addObservationLocation((0,0))
 
         time.sleep(delay)
+        ytm1 = yt
