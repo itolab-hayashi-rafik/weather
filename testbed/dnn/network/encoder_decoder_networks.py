@@ -362,18 +362,12 @@ class EncoderDecoderConvLSTM2(EncoderDecoderNetwork):
         encoder_rvals = []; decoder_rvals = []
         encoder_updates = []; decoder_updates = []
         for i, (encoder,decoder) in enumerate(zip(self.encoders, self.decoders)):
-            def scan(layer, m, x, c_, h_):
-                c, h = layer.step(m, x, c_, h_)
-                return c, h
-
-            # ---
-
             if i == 0:
                 sequences = [self.mask, self.x]
-                fn = lambda m, x, c_, h_: scan(encoder, m, x, c_, h_)
+                fn = lambda m, x, c_, h_: encoder.step(m, x, c_, h_)
             else:
                 sequences = [self.mask, encoder_rvals[-1][1]]
-                fn = lambda m, x, c_, h_: scan(encoder, m, x, c_, h_)
+                fn = lambda m, x, c_, h_: encoder.step(m, x, c_, h_)
 
             outputs_info = encoder.outputs_info(n_samples)
 
@@ -393,10 +387,10 @@ class EncoderDecoderConvLSTM2(EncoderDecoderNetwork):
 
             if i == 0:
                 sequences = None
-                fn = lambda c_, h_: scan(decoder, None, None, c_, h_)
+                fn = lambda c_, h_: decoder.step(None, None, c_, h_)
             else:
                 sequences = [self.mask, decoder_rvals[-1][1]]
-                fn = lambda m, x, c_, h_: scan(decoder, m, x, c_, h_)
+                fn = lambda m, x, c_, h_: decoder.step(m, x, c_, h_)
 
             outputs_info = [
                 encoder_rvals[-1][0][-1], # encoder's last state c[T]
