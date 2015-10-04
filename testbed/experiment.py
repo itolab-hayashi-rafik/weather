@@ -126,6 +126,8 @@ def exp_moving_mnist(
     numpy_rng = numpy.random.RandomState(1000)
     theano_rng = RandomStreams(seed=1000)
 
+    print('params: \n{0}'.format(locals()))
+
     # load dataset
     print('loading dataset...'),
     datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size)
