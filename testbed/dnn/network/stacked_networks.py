@@ -18,12 +18,12 @@ class StackedNetwork(StandaloneNetwork):
                  name="StackedNetwork",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  is_rnn=False
     ):
         self.layers = []
 
-        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn)
+        super(StackedNetwork, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn)
 
     def setup(self):
         '''
@@ -60,7 +60,7 @@ class StackedLSTM(StackedNetwork):
                  name="StackedLSTM",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  n_ins=784,
                  hidden_layers_sizes=[500, 500],
                  n_timesteps=None,
@@ -81,14 +81,14 @@ class StackedLSTM(StackedNetwork):
             if mask is None:
                 # the input minibatch mask is of shape (n_samples, n_ins)
                 mask = T.matrix('mask', dtype=theano.config.floatX) # FIXME: not used
-        if output is None:
+        if target is None:
             # the output minibatch data is of shape (n_timesteps, n_samples, n_ins)
-            output = T.tensor3('y', dtype=theano.config.floatX)
+            target = T.tensor3('y', dtype=theano.config.floatX)
 
         self.n_timesteps  = input.shape[0] if has_input and n_timesteps is None else n_timesteps
         self.n_samples = input.shape[1] if has_input else None
 
-        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -200,7 +200,7 @@ class StackedConvLSTM(StackedNetwork):
             name="StackedConvLSTM",
             input=None,
             mask=None,
-            output=None,
+            target=None,
             input_shape=(1,28,28),
             filter_shapes=[(1,1,3,3)],
             n_timesteps=None,
@@ -237,14 +237,14 @@ class StackedConvLSTM(StackedNetwork):
             if mask is None:
                 # the input minibatch mask is of shape (n_timesteps, n_samples, n_feature_maps)
                 mask = T.tensor3('mask', dtype=theano.config.floatX) # FIXME: not used
-        if output is None:
+        if target is None:
             # the output minibatch data is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
-            output = tensor5('y', dtype=theano.config.floatX)
+            target = tensor5('y', dtype=theano.config.floatX)
 
         self.n_timesteps  = input.shape[0] if has_input and n_timesteps is None else n_timesteps
         self.n_samples = input.shape[1] if has_input else None
 
-        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, output, is_rnn=True)
+        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, name, input, mask, target, is_rnn=True)
 
     def setup(self):
         # construct LSTM layers
@@ -340,8 +340,7 @@ class StackedConvLSTM(StackedNetwork):
     @property
     def last_states(self):
         '''
-        :return The states (c, h) of all ConvLSTMs at the last time interval T. This does not include
-                the output of the encoder network, namely the output of Conv(1x1) layer
+        :return The states (c, h) of all ConvLSTMs at the last time interval T.
         '''
         return [
             [

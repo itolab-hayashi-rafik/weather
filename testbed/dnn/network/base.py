@@ -82,11 +82,11 @@ class StandaloneNetwork(Network):
                  name="StandaloneNetwork",
                  input=None,
                  mask=None,
-                 output=None,
+                 target=None,
                  is_rnn=False
     ):
         self.x = input
         self.mask = mask
-        self.y = output
+        self.y = target
 
         super(StandaloneNetwork, self).__init__(numpy_rng, theano_rng, is_rnn, name)

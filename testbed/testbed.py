@@ -326,7 +326,7 @@ class TestBed(object):
         現在のデータセットから将来のデータを予測する
         :return:
         '''
-        idx = len(self.dataset)-self.t_in-self.t_out+1
+        idx = len(self.dataset)-self.t_in-1
         dataset = numpy.asarray(self.dataset, dtype=theano.config.floatX)
         x = self._make_input(dataset, [idx])
         x, mask, _ = self.model.prepare_data(x, None)
