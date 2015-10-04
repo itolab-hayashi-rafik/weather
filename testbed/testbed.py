@@ -10,13 +10,14 @@ import math
 import numpy
 import theano
 from theano import tensor as T
+from theano.gof.utils import flatten
 
 import dnn
 from generator import ConstantGenerator, SinGenerator, RadarGenerator
 import utils
 
 class TestBed(object):
-    def __init__(self, window_size=10, t_in=3, w=10, h=10, d=1, t_out=3, hidden_layers_sizes=[100,100]):
+    def __init__(self, window_size=10, t_in=3, w=10, h=10, d=1, t_out=3, hidden_layers_sizes=[3]):
         '''
         初期化する
         :param window_size:
@@ -38,7 +39,7 @@ class TestBed(object):
 
         numpy_rng = numpy.random.RandomState(89677)
         # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,sqrt(n),sqrt(n)), which means it has one sqrt(n)*sqrt(n) sized filter
-        # filter_shapes = [(10,d,k,k) for k in hidden_layers_sizes]
+        filter_shapes = [(10,d,k,k) for k in hidden_layers_sizes]
 
         # self.model = dnn.SdAIndividual(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
         # self.model = dnn.SdAFullyConnected(numpy_rng, n=n, w=w, h=h, d=d, hidden_layers_sizes=hidden_layers_sizes)
@@ -50,10 +51,13 @@ class TestBed(object):
         # self.model = dnn.StackedConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, filter_shapes=filter_shapes)
 
         # EncoderDecoderLSTM を使う場合は hidden_layers_sizes が [n_ins] + [...] + [n_ins] でないといけない.
-        self.model = dnn.EncoderDecoderLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
+        # self.model = dnn.EncoderDecoderLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
 
         # EncoderDecoderConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
-        # self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+
+        n_params = sum([p.get_value().size for p in flatten(self.model.dnn.params)])
+        print('model: num of parameters={0}'.format(n_params))
 
         print('Building pretrain function...'),
         self.f_pretrain = self.model.build_pretrain_function()
