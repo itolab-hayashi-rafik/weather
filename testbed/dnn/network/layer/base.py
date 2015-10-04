@@ -57,7 +57,7 @@ class Layer(object):
         return theano.shared(value, name=name, strict=strict, allow_downcast=allow_downcast, **kwargs)
 
     def random_initialization(self, size):
-        return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
+        return numpy.asarray(self.nrng.uniform(low=-1.0 / numpy.sqrt(size[0]), high=1.0 / numpy.sqrt(size[0]), size=size), dtype=theano.config.floatX)
 
     def zeros(self, size):
         return numpy.zeros(size, dtype=theano.config.floatX)
