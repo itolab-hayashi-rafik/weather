@@ -8,7 +8,7 @@ from base import BaseModel
 import network
 
 class EncoderDecoderConvLSTM(BaseModel):
-    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
+    def __init__(self, numpy_rng, theano_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
         '''
 
         :param numpy_rng:
@@ -22,14 +22,15 @@ class EncoderDecoderConvLSTM(BaseModel):
         '''
         self.filter_shapes = filter_shapes
 
-        dnn = network.EncoderDecoderConvLSTM2(
-            numpy_rng,
+        dnn = network.EncoderDecoderConvLSTM(
+            numpy_rng=numpy_rng,
+            theano_rng=theano_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
             n_timesteps=t_out
         )
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, dnn, t_in, d, w, h, t_out)
 
     @property
     def params(self):
@@ -89,7 +90,7 @@ class EncoderDecoderConvLSTM(BaseModel):
 
 
 class EncoderDecoderLSTM(BaseModel):
-    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
+    def __init__(self, numpy_rng, theano_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
         '''
 
         :param numpy_rng:
@@ -105,13 +106,14 @@ class EncoderDecoderLSTM(BaseModel):
         self.hidden_layers_sizes = hidden_layers_sizes
 
         dnn = network.EncoderDecoderLSTM(
-            numpy_rng,
+            numpy_rng=numpy_rng,
+            theano_rng=theano_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
             n_timesteps=t_out
         )
 
-        super(EncoderDecoderLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+        super(EncoderDecoderLSTM, self).__init__(numpy_rng, theano_rng, dnn, t_in, d, w, h, t_out)
 
     @property
     def params(self):
@@ -171,7 +173,7 @@ class EncoderDecoderLSTM(BaseModel):
 
 
 class StackedConvLSTM(BaseModel):
-    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
+    def __init__(self, numpy_rng, theano_rng, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1,1,3,3)]):
         '''
 
         :param numpy_rng:
@@ -188,12 +190,13 @@ class StackedConvLSTM(BaseModel):
         assert t_out == 1
 
         dnn = network.StackedConvLSTM(
-            numpy_rng,
+            numpy_rng=numpy_rng,
+            theano_rng=theano_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
         )
 
-        super(StackedConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+        super(StackedConvLSTM, self).__init__(numpy_rng, theano_rng, dnn, t_in, d, w, h, t_out)
 
     @property
     def params(self):
@@ -253,7 +256,7 @@ class StackedConvLSTM(BaseModel):
 
 
 class StackedLSTM(BaseModel):
-    def __init__(self, numpy_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
+    def __init__(self, numpy_rng, theano_rng, t_in=2, d=1, w=10, h=10, t_out=1, hidden_layers_sizes=[100]):
         '''
 
         :param numpy_rng:
@@ -271,12 +274,13 @@ class StackedLSTM(BaseModel):
         assert t_out == 1
 
         dnn = network.StackedLSTM(
-            numpy_rng,
+            numpy_rng=numpy_rng,
+            theano_rng=theano_rng,
             n_ins=self.n_ins,
             hidden_layers_sizes=hidden_layers_sizes,
         )
 
-        super(StackedLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+        super(StackedLSTM, self).__init__(numpy_rng, theano_rng, dnn, t_in, d, w, h, t_out)
 
     @property
     def params(self):
