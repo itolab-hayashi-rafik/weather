@@ -52,9 +52,6 @@ class ConvLSTM(RNN):
 
         super(ConvLSTM, self).__init__(n_in, n_out, activation=activation, clip_gradients=clip_gradients, prefix=prefix, **kwargs)
 
-    def random_initialization(self, size):
-        return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
-
     def conv_x(self, input, filters):
         # apply convolution for input-hidden connection
         return self.conv(
@@ -89,39 +86,36 @@ class ConvLSTM(RNN):
         if self.has_input:
             Wxf_value = self.random_initialization(self.input_filter_shape)
             self.Wxf = self._shared(Wxf_value, name="Wxf", borrow=True)
-        Whf_value = self.random_initialization(self.hidden_filter_shape)
-        self.Whf = self._shared(Whf_value, name="Whf", borrow=True)
-        Wcf_value = self.random_initialization((self.output_shape[0],))
-        self.Wcf = self._shared(Wcf_value, name="Wcf", borrow=True)
-        bf_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
-        self.bf = self._shared(bf_value, name="bf", borrow=True)
-
-        if self.has_input:
             Wxi_value = self.random_initialization(self.input_filter_shape)
             self.Wxi = self._shared(Wxi_value, name="Wxi", borrow=True)
-        Whi_value = self.random_initialization(self.hidden_filter_shape)
-        self.Whi = self._shared(Whi_value, name="Whi", borrow=True)
-        Wci_value = self.random_initialization((self.output_shape[0],))
-        self.Wci = self._shared(Wci_value, name="Wci", borrow=True)
-        bi_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
-        self.bi = self._shared(bi_value, name="bi", borrow=True)
-
-        if self.has_input:
             Wxc_value = self.random_initialization(self.input_filter_shape)
             self.Wxc = self._shared(Wxc_value, name="Wxc", borrow=True)
-        Whc_value = self.random_initialization(self.hidden_filter_shape)
-        self.Whc = self._shared(Whc_value, name="Whc", borrow=True)
-        bc_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
-        self.bc = self._shared(bc_value, name="bc", borrow=True)
-
-        if self.has_input:
             Wxo_value = self.random_initialization(self.input_filter_shape)
             self.Wxo = self._shared(Wxo_value, name="Wxo", borrow=True)
+
+        Whf_value = self.random_initialization(self.hidden_filter_shape)
+        self.Whf = self._shared(Whf_value, name="Whf", borrow=True)
+        Whi_value = self.random_initialization(self.hidden_filter_shape)
+        self.Whi = self._shared(Whi_value, name="Whi", borrow=True)
+        Whc_value = self.random_initialization(self.hidden_filter_shape)
+        self.Whc = self._shared(Whc_value, name="Whc", borrow=True)
         Who_value = self.random_initialization(self.hidden_filter_shape)
         self.Who = self._shared(Who_value, name="Who", borrow=True)
-        Wco_value = self.random_initialization((self.output_shape[0],))
+
+        Wcf_value = self.zeros((self.output_shape[0],))
+        self.Wcf = self._shared(Wcf_value, name="Wcf", borrow=True)
+        Wci_value = self.zeros((self.output_shape[0],))
+        self.Wci = self._shared(Wci_value, name="Wci", borrow=True)
+        Wco_value = self.zeros((self.output_shape[0],))
         self.Wco = self._shared(Wco_value, name="Wco", borrow=True)
-        bo_value = numpy.zeros((self.output_shape[0],), dtype=theano.config.floatX)
+
+        bf_value = self.zeros((self.output_shape[0],))
+        self.bf = self._shared(bf_value, name="bf", borrow=True)
+        bi_value = self.zeros((self.output_shape[0],))
+        self.bi = self._shared(bi_value, name="bi", borrow=True)
+        bc_value = self.zeros((self.output_shape[0],))
+        self.bc = self._shared(bc_value, name="bc", borrow=True)
+        bo_value = self.zeros((self.output_shape[0],))
         self.bo = self._shared(bo_value, name="bo", borrow=True)
 
     def step(self, m, x, c_, h_):
@@ -132,20 +126,38 @@ class ConvLSTM(RNN):
         # input height = output height, and input width = output width
 
         if self.has_input:
-            f = T.nnet.sigmoid(self.conv_x(x, self.Wxf) + self.conv_h(h_, self.Whf) + c_ * self.Wcf.dimshuffle('x',0,'x','x') + self.bf.dimshuffle('x',0,'x','x'))
-            i = T.nnet.sigmoid(self.conv_x(x, self.Wxi) + self.conv_h(h_, self.Whi) + c_ * self.Wci.dimshuffle('x',0,'x','x') + self.bi.dimshuffle('x',0,'x','x'))
-            c = self.activation(self.conv_x(x, self.Wxc) + self.conv_h(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
+            f = T.nnet.sigmoid(self.conv_x(x, self.Wxf)
+                               + self.conv_h(h_, self.Whf)
+                               + c_ * self.Wcf.dimshuffle('x',0,'x','x')
+                               + self.bf.dimshuffle('x',0,'x','x'))
+            i = T.nnet.sigmoid(self.conv_x(x, self.Wxi)
+                               + self.conv_h(h_, self.Whi)
+                               + c_ * self.Wci.dimshuffle('x',0,'x','x')
+                               + self.bi.dimshuffle('x',0,'x','x'))
+            c = self.activation(self.conv_x(x, self.Wxc)
+                                + self.conv_h(h_, self.Whc)
+                                + self.bc.dimshuffle('x',0,'x','x'))
             c = f * c_ + i * c
 
-            o = T.nnet.sigmoid(self.conv_x(x, self.Wxo) + self.conv_h(h_, self.Who) + c  * self.Wco.dimshuffle('x',0,'x','x') + self.bo.dimshuffle('x',0,'x','x'))
+            o = T.nnet.sigmoid(self.conv_x(x, self.Wxo)
+                               + self.conv_h(h_, self.Who)
+                               + c  * self.Wco.dimshuffle('x',0,'x','x')
+                               + self.bo.dimshuffle('x',0,'x','x'))
             h = o * self.activation(c)
         else:
-            f = T.nnet.sigmoid(self.conv_h(h_, self.Whf) + c_ * self.Wcf.dimshuffle('x',0,'x','x') + self.bf.dimshuffle('x',0,'x','x'))
-            i = T.nnet.sigmoid(self.conv_h(h_, self.Whi) + c_ * self.Wci.dimshuffle('x',0,'x','x') + self.bi.dimshuffle('x',0,'x','x'))
-            c = self.activation(self.conv_h(h_, self.Whc) + self.bc.dimshuffle('x',0,'x','x'))
+            f = T.nnet.sigmoid(self.conv_h(h_, self.Whf)
+                               + c_ * self.Wcf.dimshuffle('x',0,'x','x')
+                               + self.bf.dimshuffle('x',0,'x','x'))
+            i = T.nnet.sigmoid(self.conv_h(h_, self.Whi)
+                               + c_ * self.Wci.dimshuffle('x',0,'x','x')
+                               + self.bi.dimshuffle('x',0,'x','x'))
+            c = self.activation(self.conv_h(h_, self.Whc)
+                                + self.bc.dimshuffle('x',0,'x','x'))
             c = f * c_ + i * c
 
-            o = T.nnet.sigmoid(self.conv_h(h_, self.Who) + c  * self.Wco.dimshuffle('x',0,'x','x') + self.bo.dimshuffle('x',0,'x','x'))
+            o = T.nnet.sigmoid(self.conv_h(h_, self.Who)
+                               + c  * self.Wco.dimshuffle('x',0,'x','x')
+                               + self.bo.dimshuffle('x',0,'x','x'))
             h = o * self.activation(c)
 
         return c, h

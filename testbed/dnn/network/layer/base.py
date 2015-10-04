@@ -56,6 +56,12 @@ class Layer(object):
         name = self._p(name) if name is not None else name
         return theano.shared(value, name=name, strict=strict, allow_downcast=allow_downcast, **kwargs)
 
+    def random_initialization(self, size):
+        return (self.nrng.standard_normal(size) * 1. / size[0]).astype(theano.config.floatX)
+
+    def zeros(self, size):
+        return numpy.zeros(size, dtype=theano.config.floatX)
+
     def setup(self):
         pass
 
