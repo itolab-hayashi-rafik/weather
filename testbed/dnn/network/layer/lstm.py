@@ -83,7 +83,7 @@ class LSTM(RNN):
 
     def outputs_info(self, n_samples):
         # initialize hidden states: c, h
-        shape = (n_samples,) + self.n_out
+        shape = (n_samples, self.n_out)
         return [
             T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape))), # c
             T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape)))  # h
