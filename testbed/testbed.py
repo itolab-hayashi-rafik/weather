@@ -10,6 +10,7 @@ import math
 import numpy
 import theano
 from theano import tensor as T
+from theano.gof.utils import flatten
 
 import dnn
 from generator import ConstantGenerator, SinGenerator, RadarGenerator
@@ -54,6 +55,9 @@ class TestBed(object):
 
         # EncoderDecoderConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
         self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+
+        n_params = sum([p.get_value().size for p in flatten(self.model.dnn.params)])
+        print('model: num of parameters={0}'.format(n_params))
 
         print('Building pretrain function...'),
         self.f_pretrain = self.model.build_pretrain_function()
@@ -332,6 +336,7 @@ class TestBed(object):
         x, mask, _ = self.model.prepare_data(x, None)
         y = self.f_predict(x, mask) # f_predict returns output of (n_timesteps, 1, n_feature_maps, height, width)
         y = y.swapaxes(0,1)[0]      # so we need to swap axes and get (n_timesteps, n_feature_maps, height, width)
+        print('y.shape={0}'.format(y.shape))
         y = y.reshape((self.t_out, self.d, self.h, self.w))
         return y
 

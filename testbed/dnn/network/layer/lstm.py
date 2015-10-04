@@ -39,7 +39,7 @@ class LSTM(RNN):
         self.bi = self._shared(bi_value, name="bi", borrow=True)
 
         if self.has_input:
-            Wc_value = self.random_initialization((self.n_out, self.n_out))
+            Wc_value = self.random_initialization((self.n_in + self.n_out, self.n_out))
             self.Wc = self._shared(Wc_value, name="Wc", borrow=True)
         else:
             Wc_value = self.random_initialization((self.n_out, self.n_out))
@@ -83,7 +83,7 @@ class LSTM(RNN):
 
     def outputs_info(self, n_samples):
         # initialize hidden states: c, h
-        shape = (n_samples,) + self.n_out
+        shape = (n_samples, self.n_out)
         return [
             T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape))), # c
             T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape)))  # h
