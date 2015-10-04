@@ -229,8 +229,7 @@ class EncoderDecoderConvLSTM(EncoderDecoderNetwork):
         '''
 
         # concatenate the outputs of encoder and decoder to get [z_0, ..., z_T]
-        n_input_timesteps = self.x.shape[0]
-        conc = T.concatenate([self.encoder.outputs_all_layers, self.decoder.outputs_all_layers], axis=0)[n_input_timesteps-1:-1]
+        conc = T.concatenate([self.encoder.outputs_all_layers[-1:], self.decoder.outputs_all_layers[:-1]], axis=0)
 
         # Here, the concatenated 5D tensor is of shape (n_timesteps, n_samples, n_hidden_feature_maps, height, width).
         # In order to input this to the Conv(1x1) network, we reshape this to 4D tensor of shape
