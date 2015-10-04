@@ -22,7 +22,7 @@ class EncoderDecoderConvLSTM(BaseModel):
         '''
         self.filter_shapes = filter_shapes
 
-        dnn = network.EncoderDecoderConvLSTM(
+        dnn = network.EncoderDecoderConvLSTM2(
             numpy_rng,
             input_shape=(d,h,w),
             filter_shapes=filter_shapes,
