@@ -6,9 +6,11 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 
 import datetime
+import timeit
 
 import numpy
 import theano
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import dnn
 import dnn.optimizers as O
@@ -86,6 +88,7 @@ def exp_moving_mnist(
         saveFreq=None,  # Save the parameters after every saveFreq updates
         batch_size=16,  # The batch size during training.
         valid_batch_size=64,  # The batch size used for validation/test set.
+        learning_rate=1e-3,
 ):
     '''
     make experiment on Moving MNIST dataset
@@ -96,6 +99,8 @@ def exp_moving_mnist(
     :param states_file:
     :return:
     '''
+    numpy_rng = numpy.random.RandomState(1000)
+    theano_rng = RandomStreams(seed=1000)
 
     # load dataset
     datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size)
@@ -111,8 +116,7 @@ def exp_moving_mnist(
     t_in, t_out = train_data[0].shape[1], train_data[1].shape[1]
 
     # build model
-    numpy_rng = numpy.random.RandomState(89677)
-    model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+    model = dnn.EncoderDecoderConvLSTM(numpy_rng, theano_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
     f_grad_shared, f_update = model.build_finetune_function(optimizer=O.rmsprop)
     f_predict = model.build_prediction_function()
 
@@ -135,17 +139,20 @@ def exp_moving_mnist(
         """
         Just compute the error
         """
-        valid_err = 0
+        valid_errs = []
         for _, valid_index in iterator:
-            x, mask, y = model.prepare_data([data[0][t] for t in valid_index],
-                                            numpy.array(data[1])[valid_index],
-                                            maxlen=None)
-            y_ = f_predict(x, mask)
-            err = numpy.mean((y - y_)**2)
-            valid_err += err
-        valid_err = 1. - numpy.asarray(valid_err, dtype=theano.config.floatX) / len(data[0])
+            n_samples = len(valid_index)
 
-        return valid_err
+            # Select the random examples for this minibatch
+            y = [data[1][t] for t in valid_index]
+            x = [data[0][t] for t in valid_index]
+            x, mask, y = model.prepare_data(x, y)
+
+            z = f_predict(x, mask)
+            err = -numpy.sum(y * numpy.log(z) + (1.-y) * numpy.log(1.-z)) / n_samples
+            valid_errs.append(err)
+
+        return numpy.mean(valid_errs)
 
     def train(learning_rate, max_epochs):
         # training phase
@@ -177,8 +184,12 @@ def exp_moving_mnist(
                 x, mask, y = model.prepare_data(x, y)
                 n_samples += x.shape[1]
 
+                batch_start_time = timeit.default_timer()
+
                 cost = f_grad_shared(x, mask, y)
                 f_update(learning_rate)
+
+                batch_end_time = timeit.default_timer()
 
                 avg_cost += cost / len(kf)
 
@@ -187,7 +198,8 @@ def exp_moving_mnist(
                     raise Exception
 
                 if numpy.mod(uidx, dispFreq) == 0:
-                    print('Epoch {0}, Update {1}, Cost: {2}'.format(eidx, uidx, cost))
+                    print('Epoch {0}/{1}, Update {2}/{3}, took {4} secs, Cost: {5}'
+                          .format(eidx+1, max_epochs, uidx, len(kf), (batch_end_time  - batch_start_time), cost))
                     pass
 
                 if saveto and numpy.mod(uidx, saveFreq) == 0:
@@ -224,7 +236,7 @@ def exp_moving_mnist(
                             estop = True
                             break
 
-                costs.append(avg_cost)
+            costs.append(avg_cost)
 
             print("Epoch {0}/{1}: Seen {2} samples".format(eidx+1, max_epochs, n_samples))
 
@@ -237,7 +249,7 @@ def exp_moving_mnist(
 
         return train_err, valid_err, test_err
 
-    train_err, valid_err, test_err = train(1e-3, max_epochs)
+    train_err, valid_err, test_err = train(learning_rate, max_epochs)
     print("Train finished. Train: {0}, Valid: {1}, Test: {2}".format(train_err, valid_err, test_err))
 
 

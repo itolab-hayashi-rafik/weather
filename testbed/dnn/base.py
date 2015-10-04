@@ -24,7 +24,7 @@ class Model(object):
 
 
 class BaseModel(Model):
-    def __init__(self, numpy_rng, dnn, t_in=2, d=1, w=10, h=10, t_out=1):
+    def __init__(self, numpy_rng, theano_rng, dnn, t_in=2, d=1, w=10, h=10, t_out=1):
         '''
         Initialize ConvLSTM Encoder-Decoder model
         :param numpy_rng:
@@ -35,6 +35,8 @@ class BaseModel(Model):
         :param h: input height
         :param t_out: num of output timesteps
         '''
+        self.nrng = numpy_rng
+        self.trng = theano_rng
         self.dnn = dnn
         self.t_in = t_in
         self.d = d

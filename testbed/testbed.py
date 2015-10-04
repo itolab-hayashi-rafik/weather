@@ -11,6 +11,7 @@ import numpy
 import theano
 from theano import tensor as T
 from theano.gof.utils import flatten
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import dnn
 from generator import ConstantGenerator, SinGenerator, RadarGenerator
@@ -37,7 +38,9 @@ class TestBed(object):
         self.t_out = t_out
         self.dataset = [ numpy.zeros((d,h,w), dtype=theano.config.floatX) for i in xrange(window_size) ]
 
-        numpy_rng = numpy.random.RandomState(89677)
+        numpy_rng = numpy.random.RandomState(1000)
+        theano_rng = RandomStreams(seed=1000)
+
         # for each value n in hidden_layers_sizes, assume it as a filter of (1,d,sqrt(n),sqrt(n)), which means it has one sqrt(n)*sqrt(n) sized filter
         filter_shapes = [(10,d,k,k) for k in hidden_layers_sizes]
 
@@ -54,7 +57,7 @@ class TestBed(object):
         # self.model = dnn.EncoderDecoderLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, hidden_layers_sizes=hidden_layers_sizes)
 
         # EncoderDecoderConvLSTM では中間層の大きさは入力層と同じ(固定). ただしパラメータ数(フィルタの数, 大きさ)は自由に変えられる.
-        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+        self.model = dnn.EncoderDecoderConvLSTM(numpy_rng, theano_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
 
         n_params = sum([p.get_value().size for p in flatten(self.model.dnn.params)])
         print('model: num of parameters={0}'.format(n_params))
