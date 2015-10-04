@@ -163,10 +163,11 @@ class ConvLSTM(RNN):
         return c, h
 
     def outputs_info(self, n_samples):
-        # initialize the output of step(): c, h
+        # initialize hidden states: c, h
+        shape = (n_samples,) + self.output_shape
         return [
-            dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, *self.output_shape), [False, False, False, False]), taps=[-1]), # c
-            dict(initial=T.patternbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), n_samples, *self.output_shape), [False, False, False, False]), taps=[-1]), # h
+            T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape))), # c
+            T.unbroadcast(T.alloc(numpy.asarray(0., dtype=theano.config.floatX), *shape), *range(len(shape)))  # h
         ]
 
     @property
