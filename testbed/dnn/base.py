@@ -81,13 +81,13 @@ class BaseModel(Model):
         '''
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.dnn.y # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
-        y_ = self.dnn.output # y_ is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        y = self.get_target() # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        z = self.get_output() # z is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
         n_samples = y.shape[1]
 
-        mse = T.mean((y - y_)**2) # Mean Square Error
-        cee = T.sum(T.nnet.binary_crossentropy(y_, y)) / n_samples # Cross Entropy Error
+        mse = T.mean((y - z)**2) # Mean Square Error
+        cee = T.sum(-(y * T.log(z) + (1.0-y) * T.log(1.0-z))) / n_samples # Cross Entropy Error
         cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
@@ -98,12 +98,18 @@ class BaseModel(Model):
         return (f_grad_shared, f_update)
 
     def build_prediction_function(self):
-        if self.dnn.is_rnn:
-            return theano.function([self.dnn.x, self.dnn.mask], outputs=self.dnn.outputs)
-        else:
-            return theano.function([self.dnn.x, self.dnn.mask], outputs=self.dnn.output)
+        return theano.function([self.dnn.x, self.dnn.mask], outputs=self.get_output())
 
-    def prepare_data(self, xs, ys, maxlen=None):
+    def get_target(self):
+        return self.dnn.y
+
+    def get_output(self):
+        if self.dnn.is_rnn:
+            return self.dnn.outputs
+        else:
+            return self.dnn.output
+
+    def prepare_data(self, xs, ys):
         '''
         prepare data for inserting to RNN or LSTM
         see: /lstm/tutorial/imdb.py
@@ -114,27 +120,10 @@ class BaseModel(Model):
         '''
         lengths = [len(s) for s in xs]
 
-        if maxlen is not None:
-            new_seqs = []
-            new_labels = []
-            new_lengths = []
-            for l, s, y in zip(lengths, xs, ys):
-                if l < maxlen:
-                    new_seqs.append(s)
-                    new_labels.append(y)
-                    new_lengths.append(l)
-            lengths = new_lengths
-            ys = new_labels
-            xs = new_seqs
-
-            if len(lengths) < 1:
-                return None, None, None
-
         n_samples = len(xs)
-        maxlen = numpy.max(lengths) # n_timesteps
 
-        x = numpy.zeros((maxlen, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
-        x_mask = numpy.zeros((maxlen, n_samples, self.d), dtype=theano.config.floatX)
+        x = numpy.zeros((self.t_in, n_samples, self.d, self.h, self.w), dtype=theano.config.floatX)
+        x_mask = numpy.zeros((self.t_in, n_samples, self.d), dtype=theano.config.floatX)
         for idx, xi in enumerate(xs):
             x[:lengths[idx], idx, :, :, :] = xi
             x_mask[:lengths[idx], idx, :] = 1.
