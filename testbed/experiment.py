@@ -232,7 +232,7 @@ def exp_moving_mnist(
 
                 if numpy.mod(uidx, dispFreq) == 0:
                     print('Epoch {0}/{1}, Update {2}/{3}, took {4} secs, Cost: {5}'
-                          .format(eidx+1, max_epochs, uidx, len(kf), (batch_end_time  - batch_start_time), cost))
+                          .format(eidx+1, max_epochs, bidx, len(kf), (batch_end_time  - batch_start_time), cost))
                     pass
 
                 if saveto and numpy.mod(uidx, saveFreq) == 0:
