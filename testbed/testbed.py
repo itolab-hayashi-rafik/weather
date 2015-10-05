@@ -314,17 +314,19 @@ class TestBed(object):
         # iteratively validate each minibatch
         costs = []
         for _, valid_index in kf:
+            n_samples = len(valid_index)
+
             # Select the random examples for this minibatch
             y = self._make_output(dataset, valid_index)
             x = self._make_input(dataset, valid_index)
-
             x, mask, y = self.model.prepare_data(x, y)
-            y_ = self.f_predict(x, mask)
+            # x is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
-            n_samples = y.shape[1]
-
-            cost = -numpy.sum(y * numpy.log(y_) + (1.-y) * numpy.log(1.-y_)) / n_samples
-            costs.append(cost)
+            z = self.f_predict(x, mask)
+            # z is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            err = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
+            costs.append(err)
 
         return costs
 

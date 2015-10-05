@@ -177,9 +177,12 @@ def exp_moving_mnist(
             y = [data[1][t] for t in valid_index]
             x = [data[0][t] for t in valid_index]
             x, mask, y = model.prepare_data(x, y)
+            # x is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
             z = f_predict(x, mask)
-            err = -numpy.sum(y * numpy.log(z) + (1.-y) * numpy.log(1.-z)) / n_samples
+            # z is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            err = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
             valid_errs.append(err)
 
         return numpy.mean(valid_errs)
