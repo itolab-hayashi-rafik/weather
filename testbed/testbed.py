@@ -327,7 +327,7 @@ class TestBed(object):
             mse = numpy.mean((y-z)**2)
             cee = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
             cee2= numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))+(y * numpy.log(y) + (1.0-y) * numpy.log(1.0-y))) / n_samples
-            err = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
+            err = cee
             costs.append(err)
 
         return numpy.mean(costs)
