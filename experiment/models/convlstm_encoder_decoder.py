@@ -63,13 +63,13 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         index = T.lscalar('index')
         learning_rate = T.scalar('lr', dtype=theano.config.floatX)
 
-        y = self.dnn.y # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
-        y_ = self.dnn.output # y_ is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        y = self.get_target() # y is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+        z = self.get_output() # y_ is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
 
         n_samples = y.shape[1]
 
-        mse = T.mean((y - y_)**2) # Mean Square Error
-        cee = -T.sum(y * T.log(y_) + (1.-y) * T.log(1.-y_)) / n_samples # Cross Entropy Error
+        mse = T.mean((y - z)**2) # Mean Square Error
+        cee = T.sum(-(y * T.log(z) + (1.-y) * T.log(1.-z))) / n_samples # Cross Entropy Error
         cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)
