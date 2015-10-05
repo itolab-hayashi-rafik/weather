@@ -324,6 +324,9 @@ class TestBed(object):
 
             z = self.f_predict(x, mask)
             # z is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
+            mse = numpy.mean((y-z)**2)
+            cee = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
+            cee2= numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))+(y * numpy.log(y) + (1.0-y) * numpy.log(1.0-y))) / n_samples
             err = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
             costs.append(err)
 
