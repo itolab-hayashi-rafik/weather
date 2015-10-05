@@ -24,7 +24,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
         # self.y is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
         self.y = tensor5('y', dtype=theano.config.floatX)
 
-        dnn = network.EncoderDecoderConvLSTM2(
+        dnn = network.EncoderDecoderConvLSTM(
             numpy_rng,
             input=self.x.dimshuffle(1,0,2,3,4), # dimshuffle to (n_timesteps, n_samples, n_feature_maps, height, width)
             mask=self.mask.dimshuffle(1,0,2),   # dimshuffle to (n_timesteps, n_samples, n_feature_maps)
