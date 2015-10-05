@@ -85,7 +85,7 @@ class Conv(Layer):
     def setup(self):
         W_value = self.random_initialization(self.filter_shape)
         self.W = self._shared(W_value, name="W", borrow=True)
-        b_values = numpy.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
+        b_values = self.zeros((self.filter_shape[0],))
         self.b = self._shared(b_values, name="b", borrow=True)
 
     @property
