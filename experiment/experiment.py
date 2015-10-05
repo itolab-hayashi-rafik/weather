@@ -10,14 +10,36 @@ import datetime
 import timeit
 import numpy
 import theano
+import theano.tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import cPickle
 
 from models.convlstm_encoder_decoder import EncoderDecoderConvLSTM
 from testbed.utils import ndarray
 
-def unzip(params):
-    return params # FIXME: need deepcopy
+def zzip(params):
+    assert isinstance(params, list) or isinstance(params, dict)
+    if isinstance(params, list):
+        rval = []
+        for param in params:
+            if isinstance(param, list) or isinstance(param, dict):
+                rval.append(zzip(param))
+            elif isinstance(param, theano.tensor.sharedvar.TensorSharedVariable):
+                rval.append(param.get_value())
+            elif isinstance(param, numpy.ndarray):
+                rval.append(param.copy())
+    elif isinstance(params, dict):
+        rval = {}
+        for key, value in params.items():
+            if isinstance(value, list) or isinstance(value, dict):
+                rval[key] = zzip(value)
+            elif isinstance(value, theano.tensor.sharedvar.TensorSharedVariable):
+                rval[key] = value.get_value()
+            elif isinstance(value, numpy.ndarray):
+                rval[key] = value.copy()
+    else:
+        rval = None
+    return rval
 
 def patchify(data, patch_size):
     # dataset.shape: (n_timesteps, n_feature_maps, height, width)
@@ -155,6 +177,7 @@ def exp_moving_mnist(
     validation_frequency = min(n_train_batches, patience / 2)
 
     best_validation_loss = numpy.inf
+    best_p = None
     test_score_mee = 0.
     test_score_cee = 0.
     start_time = timeit.default_timer()
@@ -252,7 +275,9 @@ def exp_moving_mnist(
                         )
 
                         # save the best model
-                        numpy.savez(saveto, **model.params)
+                        if best_p is None:
+                            best_p = zzip(model.params)
+                        numpy.savez(saveto, **best_p)
 
                 if patience <= iter:
                     done_looping = True
