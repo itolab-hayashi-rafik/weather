@@ -88,6 +88,7 @@ class BaseModel(Model):
 
         mse = T.mean((y - z)**2) # Mean Square Error
         cee = T.sum(-(y * T.log(z) + (1.0-y) * T.log(1.0-z))) / n_samples # Cross Entropy Error
+        # cee2= T.sum(-(y * T.log(z) + (1.0-y) * T.log(1.0-z))+(y * T.log(y) + (1.0-y) * T.log(1.0-y))) / n_samples
         cost = cee
         params = flatten(self.dnn.params)
         grads = T.grad(cost, params)

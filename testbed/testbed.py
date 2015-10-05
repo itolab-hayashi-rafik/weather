@@ -278,8 +278,7 @@ class TestBed(object):
 
                 if numpy.mod(uidx, validFreq) == 0:
                     #use_noise.set_value(0.) # TODO: implement dropout?
-                    valid_costs = self.pred_error(dataset, valid_idx, batch_size)
-                    valid_cost = numpy.mean(valid_costs)
+                    valid_cost = self.pred_error(dataset, valid_idx, batch_size)
                     v_costs.append(valid_cost)
                     history_errs.append(valid_cost)
 
@@ -325,10 +324,13 @@ class TestBed(object):
 
             z = self.f_predict(x, mask)
             # z is of shape (n_timesteps, n_samples, n_feature_maps, height, width)
-            err = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
+            mse = numpy.mean((y-z)**2)
+            cee = numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))) / n_samples
+            cee2= numpy.sum(-(y * numpy.log(z) + (1.0-y) * numpy.log(1.0-z))+(y * numpy.log(y) + (1.0-y) * numpy.log(1.0-y))) / n_samples
+            err = cee
             costs.append(err)
 
-        return costs
+        return numpy.mean(costs)
 
     def predict(self):
         '''
