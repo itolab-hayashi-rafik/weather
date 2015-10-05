@@ -8,16 +8,40 @@ sys.path.append('/usr/local/lib/python2.7/site-packages')
 import datetime
 import timeit
 
+import pickle
+
 import numpy
 import theano
+import theano.tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import dnn
 import dnn.optimizers as O
 from utils import ndarray
 
-def unzip(params):
-    return params # FIXME: need deepcopy
+def zzip(params):
+    assert isinstance(params, list) or isinstance(params, dict)
+    if isinstance(params, list):
+        rval = []
+        for param in params:
+            if isinstance(param, list) or isinstance(param, dict):
+                rval.append(zzip(param))
+            elif isinstance(param, theano.tensor.sharedvar.TensorSharedVariable):
+                rval.append(param.get_value())
+            elif isinstance(param, numpy.ndarray):
+                rval.append(param.copy())
+    elif isinstance(params, dict):
+        rval = {}
+        for key, value in params.items():
+            if isinstance(value, list) or isinstance(value, dict):
+                rval[key] = zzip(value)
+            elif isinstance(value, theano.tensor.sharedvar.TensorSharedVariable):
+                rval[key] = value.get_value()
+            elif isinstance(value, numpy.ndarray):
+                rval[key] = value.copy()
+    else:
+        rval = None
+    return rval
 
 def get_minibatches_idx(n, minibatch_size, shuffle=False):
     """
@@ -102,9 +126,13 @@ def exp_moving_mnist(
     numpy_rng = numpy.random.RandomState(1000)
     theano_rng = RandomStreams(seed=1000)
 
+    print('params: \n{0}'.format(locals()))
+
     # load dataset
+    print('loading dataset...'),
     datasets = moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size)
     train_data, valid_data, test_data = datasets
+    print('done')
 
     # check if the output directory exists and make directory if necessary
     outdir = os.path.dirname(saveto)
@@ -116,9 +144,11 @@ def exp_moving_mnist(
     t_in, t_out = train_data[0].shape[1], train_data[1].shape[1]
 
     # build model
+    print('building model...')
     model = dnn.EncoderDecoderConvLSTM(numpy_rng, theano_rng, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
     f_grad_shared, f_update = model.build_finetune_function(optimizer=O.rmsprop)
     f_predict = model.build_prediction_function()
+    print('done')
 
     kf_train = get_minibatches_idx(len(train_data[0]), batch_size)
     kf_valid = get_minibatches_idx(len(valid_data[0]), valid_batch_size)
@@ -208,9 +238,9 @@ def exp_moving_mnist(
                     if best_p is not None:
                         params = best_p
                     else:
-                        params = unzip(model.params)
+                        params = zzip(model.params)
                     numpy.savez(saveto, history_errs=history_errs, **params)
-                    # pkl.dump(model_options, open('%s.pkl' % saveto, 'wb'), -1)
+                    pickle.dump(params, open('%s.pkl' % saveto, 'wb'), -1)
                     print('Done')
 
                 if numpy.mod(uidx, validFreq) == 0:
@@ -223,7 +253,7 @@ def exp_moving_mnist(
 
                     if (uidx == 0 or
                                 valid_err <= numpy.array(history_errs).min()):
-                        best_p = model.params
+                        best_p = zzip(model.params)
                         bad_counter = 0
 
                     print(" (validtion) Train: {0}, Valid: {1}, Test: {2}".format(train_err, valid_err, test_err))
@@ -273,7 +303,7 @@ if __name__ == '__main__':
     elif exp == 5:
         filter_shapes = [(128,16,9,9),(64,128,9,9),(64,64,9,9)]
     elif exp == 6:
-        filter_shapes = [(32,16,5,5)]
+        filter_shapes = [(1,16,5,5)]
     else:
         raise NotImplementedError
 
