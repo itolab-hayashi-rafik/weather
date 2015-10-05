@@ -10,6 +10,7 @@ import datetime
 import timeit
 import numpy
 import theano
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import cPickle
 
 from models.convlstm_encoder_decoder import EncoderDecoderConvLSTM
@@ -85,6 +86,9 @@ def exp_moving_mnist(
 
     print('params: {0}'.format(locals()))
 
+    numpy_rng = numpy.random.RandomState(1000)
+    theano_rng = RandomStreams(seed=1000)
+
     ################
     # load dataset #
     ################
@@ -133,7 +137,7 @@ def exp_moving_mnist(
         # build model
         print('building model...'),
         numpy_rng = numpy.random.RandomState(89677)
-        model = EncoderDecoderConvLSTM(numpy_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
+        model = EncoderDecoderConvLSTM(numpy_rng, theano_rng, dataset_sizes, t_in=t_in, d=d, w=w, h=h, t_out=t_out, filter_shapes=filter_shapes)
         f_grad_shared, f_update, f_valid, f_test = model.build_finetune_function(batch_size=batch_size, valid_batch_size=valid_batch_size)
         f = open(model_file, 'wb')
         cPickle.dump(model, f)

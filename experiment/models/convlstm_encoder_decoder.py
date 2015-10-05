@@ -14,7 +14,7 @@ from testbed.dnn.network import tensor5
 import optimizers as O
 
 class EncoderDecoderConvLSTM(dnn.BaseModel):
-    def __init__(self, numpy_rng, dataset_sizes, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1, 1, 3, 3)]):
+    def __init__(self, numpy_rng, theano_rng, dataset_sizes, t_in=2, d=1, w=10, h=10, t_out=1, filter_shapes=[(1, 1, 3, 3)]):
         # self.filter_shapes is of shape [(n_filters, n_feature_maps, filter_height, filter_width), ...]
         self.filter_shapes = filter_shapes
         # self.x is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
@@ -43,7 +43,7 @@ class EncoderDecoderConvLSTM(dnn.BaseModel):
 
         self.finetune_functions = None
 
-        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, dnn, t_in, d, w, h, t_out)
+        super(EncoderDecoderConvLSTM, self).__init__(numpy_rng, theano_rng, dnn, t_in, d, w, h, t_out)
 
     def _shared(self, t_in, d, h, w, t_out, dataset_size):
         shared_x = theano.shared(numpy.zeros((dataset_size, t_in, d, h, w), dtype=theano.config.floatX), borrow=True)
