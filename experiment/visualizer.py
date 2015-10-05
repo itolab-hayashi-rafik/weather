@@ -114,7 +114,7 @@ def parse_log(log_file, unit='minibatch'):
     return (train_costs, valid_costs, test_costs)
 
 if __name__ == '__main__':
-    train_costs, valid_costs, test_costs = parse_log('logs/3.log', unit='dataset')
+    train_costs, valid_costs, test_costs = parse_log('logs/3.log', unit='minibatch')
 
     fig = LearningCurve(
         costs_x=(train_costs[0], valid_costs[0], test_costs[0]),

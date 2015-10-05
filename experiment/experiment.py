@@ -177,7 +177,6 @@ def exp_moving_mnist(
     validation_frequency = min(n_train_batches, patience / 2)
 
     best_validation_loss = numpy.inf
-    best_p = None
     test_score_mee = 0.
     test_score_cee = 0.
     start_time = timeit.default_timer()
@@ -275,9 +274,7 @@ def exp_moving_mnist(
                         )
 
                         # save the best model
-                        if best_p is None:
-                            best_p = zzip(model.params)
-                        numpy.savez(saveto, **best_p)
+                        numpy.savez(saveto, **model.params)
 
                 if patience <= iter:
                     done_looping = True
