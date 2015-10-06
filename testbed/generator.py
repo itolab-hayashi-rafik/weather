@@ -96,7 +96,7 @@ class RadarGenerator(Generator):
         if self.i >= len(self.files):
             raise StopIteration
 
-        data = []
+        data = None
 
         file = self.files[self.i]
         filepath = os.path.join(self.dir, file)
@@ -115,14 +115,15 @@ class RadarGenerator(Generator):
             w = w - self.offset[0] if n_cols < self.offset[0] + w else w
             h = h - self.offset[1] if n_rows < self.offset[1] + h else h
 
+            data = numpy.zeros((1,h,w), dtype=theano.config.floatX)
+
             for timeline in reader:
-                chunk = []
                 for row in xrange(n_rows):
                     line = next(reader)
-                    chunk.append(line[self.offset[0]:self.offset[0]+w])
-                data.append(chunk[self.offset[1]:self.offset[1]+h])
+                    if self.offset[1] <= row and row < h:
+                        data[0,row,:] = map(lambda x: float(x), line[self.offset[0]:self.offset[0]+w])
 
-        return numpy.asarray(data, dtype=theano.config.floatX) / 100.0
+        return data / 100.0
 
 class SatelliteGenerator(Generator):
     def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200)):
@@ -199,22 +200,17 @@ class SatelliteGenerator(Generator):
             intensity = (r/255.+g/255.+g/255.)/3.
             return intensity
 
-        data = \
-            [
-                [
-                    [
-                        [
-                            getval(
-                                self.basepos[0]+(self.offset[0]+i)*self.meshsize[0],
-                                self.basepos[1]+(self.offset[1]+j)*self.meshsize[1],
-                                k
-                            )
-                        ] for i in xrange(self.w)
-                    ] for j in xrange(self.h)
-                ] for k in xrange(self.d)
-            ]
+        data = numpy.zeros((self.d, self.h, self.w), dtype=theano.config.floatX)
+        for k in xrange(self.d):
+            for j in xrange(self.h):
+                for i in xrange(self.w):
+                    data[k,j,i] = getval(
+                        self.basepos[0]+(self.offset[0]+i)*self.meshsize[0],
+                        self.basepos[1]+(self.offset[1]+j)*self.meshsize[1],
+                        k
+                    )
 
-        return numpy.asarray(data, dtype=theano.config.floatX)
+        return data
 
 
 def gen_dataset(t_in=5, w=10, h=10, offset=(0,0,0), t_out=15):

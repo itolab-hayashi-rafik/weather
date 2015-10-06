@@ -239,7 +239,7 @@ if __name__ == '__main__':
     h = 28
     delay = 0.1
     gen = SinGenerator(w=w, h=h, d=1)
-    # gen = RadarGenerator('../data/radar', w=w, h=h, left=0, top=80)
+    # gen = RadarGenerator('../data/radar', w=w, h=h, offset=(0,80,0))
     vis = Visualizer(w=w, h=h, t_out=2)
 
     time.sleep(10)
