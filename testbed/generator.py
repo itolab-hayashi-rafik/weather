@@ -214,7 +214,7 @@ class SatelliteGenerator(Generator):
                 ] for k in xrange(self.d)
             ]
 
-        return data
+        return numpy.asarray(data, dtype=theano.config.floatX)
 
 
 def gen_dataset(t_in=5, w=10, h=10, offset=(0,0,0), t_out=15):
