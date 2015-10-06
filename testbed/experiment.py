@@ -111,7 +111,7 @@ def exp_moving_mnist(
         validFreq=None,  # Compute the validation error after this number of update.
         saveFreq=None,  # Save the parameters after every saveFreq updates
         batch_size=16,  # The batch size during training.
-        valid_batch_size=64,  # The batch size used for validation/test set.
+        valid_batch_size=16,  # The batch size used for validation/test set.
         learning_rate=1e-3,
 ):
     '''
