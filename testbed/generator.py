@@ -9,9 +9,7 @@ import theano.tensor as T
 
 import csv
 from PIL import Image
-
-# Earth Radius (unit: meter)
-R = 6371000
+import lrit
 
 class Generator(object):
     def __init__(self, w=10, h=10, d=1):
@@ -127,7 +125,7 @@ class RadarGenerator(Generator):
         return numpy.asarray(data, dtype=theano.config.floatX) / 100.0
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200), imgbasepos=(), imgbaselng=135, imgscale=1.0):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200)):
         '''
 
         :param dir:
@@ -136,25 +134,28 @@ class SatelliteGenerator(Generator):
         :param offset: offsets of (x, y, timestep)
         :param meshsize: the size of each cell in the grid (unit: sec)
         :param basepos: the lat long position of the northwest (unit: sec)
-        :param imgbasepos:
-        :param imgbaselng:
-        :param imgscale:
-        :param
         :return:
         '''
+        # setting for POLAR(N,135) satellite images
+        self.lrit_settings = {
+            'prj_dir': 'N',
+            'prj_lon': 135.,
+            'CFAC': 99560944,
+            'LFAC': 99440107,
+            'COFF': 540,
+            'LOFF': -420
+        }
+
         super(SatelliteGenerator, self).__init__(w, h, 1)
         dir = os.path.join(os.path.dirname(__file__), dir)
         self.dir = dir
         self.offset = offset
         self.meshsize = meshsize
         self.basepos = basepos
-        self.imgbasepos = imgbasepos
-        self.imgbaselng = imgbaselng
-        self.imgscale = imgscale
 
         cwd = os.getcwd()
         os.chdir(dir)
-        self.files = glob.glob('*.csv')
+        self.files = glob.glob('*.jpg')
         self.files.sort()
         os.chdir(cwd)
 
@@ -172,18 +173,30 @@ class SatelliteGenerator(Generator):
         filepath = os.path.join(self.dir, file)
         img = Image.open(filepath)
 
-        def getval(lat, lng, d):
-            phi = math.radians(lat)
-            lmd = math.radians(lng - self.imgbaselng)
-            p = 2. * R * math.tan((math.pi/2. - phi) / 2.)
-            x = p * math.sin(lmd)
-            y = p * math.cos(lmd)
+        def sec2degree(sec):
+            return (sec/3600.)
 
-            img_x = x - self.imgbasepos[0] # FIXME: wrong implementation,
-            img_y = y - self.imgbasepos[1] #        not tested yet.
+        def getval(lon, lat, d):
+            '''
+            get the image intensity at (lon,lat) in secs
+            '''
+            x,y = lrit.lonlat2xy(
+                prj_dir=self.lrit_settings['prj_dir'],
+                prj_lon=self.lrit_settings['prj_lon'],
+                lon=sec2degree(lon),
+                lat=sec2degree(lat),
+            )
+            c,l = lrit.xy2cl(
+                cfac=self.lrit_settings['CFAC'],
+                lfac=self.lrit_settings['LFAC'],
+                coff=self.lrit_settings['COFF'],
+                loff=self.lrit_settings['LOFF'],
+                x=x,
+                y=y
+            )
 
-            (r,g,b) = img[img_x,img_y]
-            intensity = (r/255.+g/255.+g/255.)
+            (r,g,b) = img.getpixel((c,l))
+            intensity = (r/255.+g/255.+g/255.)/3.
             return intensity
 
         data = \
@@ -192,8 +205,8 @@ class SatelliteGenerator(Generator):
                     [
                         [
                             getval(
-                                self.basepos[0]+self.offset[0]+self.meshsize[0]*i,
-                                self.basepos[1]+self.offset[1]+self.meshsize[1]*j,
+                                self.basepos[0]+(self.offset[0]+i)*self.meshsize[0],
+                                self.basepos[1]+(self.offset[1]+j)*self.meshsize[1],
                                 k
                             )
                         ] for i in xrange(self.w)
