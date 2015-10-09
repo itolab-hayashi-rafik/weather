@@ -13,6 +13,58 @@ from generator import RadarGenerator, SatelliteGenerator
 weather dataset generator
 '''
 
+class WeatherDataGenerator(object):
+    def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
+                 begin='201408010000', end='201408312330', step='5'):
+        self.generators = []
+        self.generators += [{
+            'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                        begin=begin, end=end, step=step),
+            'step': 1
+        }]
+        # self.generators += [{
+        #     'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+        #                                     begin=begin, end=end, step=step),
+        #     'step': 1
+        # }]
+        # self.generators += [{
+        #     'generator': SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+        #                                     begin=begin, end=end, step=step),
+        #     'step': 1
+        # }]
+
+        self.seqnum = seqnum
+        self.seqdim = seqdim
+
+        self.setup()
+
+    def setup(self):
+        # initialize first frames with with zeros
+        self.frames = [numpy.zeros((1,) + self.seqdim[2:], dtype=numpy.float32) for _ in self.generators]
+
+        self.t = -1
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        self.t = self.t + 1
+        err = False
+
+        # generate frame by generators if necessary
+        for i,entry in enumerate(self.generators):
+            try:
+                if self.t % entry['step'] == 0:
+                    self.frames[i] = entry['generator'].next()
+            except IOError as err:
+                print('warning: IOError, {0}'.format(err))
+                err = True
+
+        # concatenate frames
+        frame = numpy.concatenate(self.frames, axis=0)
+
+        return frame if not err else None
+
 def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
     # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
     assert 5 == seq.ndim
@@ -26,19 +78,9 @@ def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
     clips[1, :, 1] = output_seq_len
     numpy.savez_compressed(path, dims=dims, input_raw_data=input_raw_data, clips=clips)
 
-def generate_sequence(seqdim, steps, g_radar, g_sat1, g_sat2):
-    seq = numpy.zeros(seqdim, dtype=numpy.float32)
-    radar = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
-    sat1 = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
-    sat2 = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
-    for i in xrange(seqdim[0]):
-        radar = g_radar.next() if i % steps[0] == 0 else radar
-        sat1 = g_sat1.next() if i % steps[1] == 0 else sat1
-        sat2 = g_sat2.next() if i % steps[2] == 0 else sat2
-        seq[i, :, :, :] = numpy.concatenate([radar, sat1, sat2], axis=0)
-    return numpy.asarray(seq, dtype=numpy.float64)
+    print('output file is available at: {0}'.format(path))
 
-def generator(seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), steps=(1,3,3), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS", savedir='out'):
+def generator(seqnum=8741, seqdim=(20, 1, 120, 120), offset=(0,0,0), savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
@@ -51,33 +93,48 @@ def generator(seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), steps=(1,3,3
     :param savedir:
     :return:
     '''
-    g_radar = RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]))
-    g_sat1 = SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]))
-    g_sat2 = SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]))
+
+    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset)
+    frames = []
+
+    def fill_frames():
+        while len(frames) < seqdim[0]:
+            frame = gen.next()
+            if frame is None:
+                del frames[:]
+            else:
+                frames.append(frame)
 
     # make output directory
     if not os.path.isdir(savedir):
         os.makedirs(savedir)
 
     print('... Generating sequences')
-    seq = numpy.zeros((seqnum,) + seqdim, dtype=numpy.float32)
+    fill_frames()
+    seqs = numpy.zeros((seqnum,) + seqdim, dtype=numpy.float32)
     for i in range(seqnum):
         print('sequence {0} ...'.format(i)),
-        seq[i, :, :, :, :] = generate_sequence(seqdim, steps, g_radar, g_sat1, g_sat2)
+        seqs[i, :, :, :, :] = numpy.asarray(frames, dtype=numpy.float32)
         print('created')
+
+        frames.pop(0)
+        fill_frames()
+
         if savedir is not '':
             if i < 100:
                 for d in xrange(seqdim[1]):
                     outfile = savedir + "/" + str(i) + "-" + str(d) + ".gif"
-                    gifmaker.save_gif(seq[i, :, d, :, :], outfile)
+                    gifmaker.save_gif(seqs[i, :, d, :, :], outfile)
                     print('  --> saved to {0}'.format(outfile))
 
     if savedir is not '':
-        save_to_numpy_format(seq[:10000], 10, 10, savedir + "/moving-mnist-train.npz")
-        save_to_numpy_format(seq[10000:12000], 10, 10, savedir + "/moving-mnist-valid.npz")
-        save_to_numpy_format(seq[12000:15000], 10, 10, savedir + "/moving-mnist-test.npz")
+        cut1 = int(seqnum*0.8)
+        cut2 = int(seqnum*0.9)
+        save_to_numpy_format(seqs[:cut1], 10, 10, savedir + "/dataset-train.npz")
+        save_to_numpy_format(seqs[cut1:cut2], 10, 10, savedir + "/dataset-valid.npz")
+        save_to_numpy_format(seqs[cut2:], 10, 10, savedir + "/dataset-test.npz")
     else:
-        return seq
+        return seqs
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
@@ -93,5 +150,5 @@ def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5)
             print('file '+filepath+' does not exist')
 
 if __name__ == '__main__':
-    file_check()
-    # generator()
+    # file_check()
+    generator()

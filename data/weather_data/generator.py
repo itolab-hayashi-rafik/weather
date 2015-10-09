@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import glob
+import time
+import calendar
+from datetime import datetime
 
 import math
 import numpy
@@ -10,6 +13,93 @@ import theano.tensor as T
 import csv
 from PIL import Image
 import lrit
+
+def tsxrange(begin='201408010000', end='201408312330', step='5'):
+    '''
+    timestamp range
+    :param begin: フォーマット 'YYYYMMDDhhmm' の開始タイムスタンプ
+    :param end: フォーマット 'YYYYMMDDhhmm' の終了タイムスタンプ
+    :param step: フォーマット 'mm' のステップタイムスタンプ
+    :return:
+    '''
+    tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
+    tend = int(calendar.timegm(datetime.strptime(end, "%Y%m%d%H%M").timetuple()))
+    tstep = int(step)*60
+
+    for t in xrange(tbegin, tend, tstep):
+        stim = time.gmtime(t)
+        tim = time.strftime("%Y%m%d%H%M", stim)
+        yield tim
+
+def tsrange(begin='201408010000', end='201408312330', step='5'):
+    return [x for x in tsxrange(begin, end, step)]
+
+def parse_radar(filepath, w, h, offset):
+    with open(filepath) as f:
+        reader = csv.reader(f)
+        datetime    = next(reader)  # ヘッダーの読み飛ばし
+        grid        = next(reader)  # ヘッダーの読み飛ばし
+        header      = next(reader)  # ヘッダーの読み飛ばし
+        location    = next(reader)  # ヘッダーの読み飛ばし
+        range       = next(reader)  # ヘッダーの読み飛ばし
+
+        n_rows, n_cols = map(lambda x: int(x), grid)
+
+        w = w if 0 < w else n_cols
+        h = h if 0 < h else n_rows
+        w = w - offset[0] if n_cols < offset[0] + w else w
+        h = h - offset[1] if n_rows < offset[1] + h else h
+
+        data = numpy.zeros((1,h,w), dtype=theano.config.floatX)
+
+        for timeline in reader:
+            for row in xrange(n_rows):
+                line = next(reader)
+                if offset[1] <= row and row < h:
+                    data[0,row,:] = map(lambda x: float(x), line[offset[0]:offset[0]+w])
+
+    return data
+
+def parse_satellite(filepath, w, h, d, offset, meshsize, basepos, lrit_settings):
+    img = Image.open(filepath)
+
+    def sec2degree(sec):
+        return (sec/3600.)
+
+    def getval(lon, lat, d):
+        '''
+        get the image intensity at (lon,lat) in secs
+        '''
+        x,y = lrit.lonlat2xy(
+            prj_dir=lrit_settings['prj_dir'],
+            prj_lon=lrit_settings['prj_lon'],
+            lon=sec2degree(lon),
+            lat=sec2degree(lat),
+        )
+        c,l = lrit.xy2cl(
+            cfac=lrit_settings['CFAC'],
+            lfac=lrit_settings['LFAC'],
+            coff=lrit_settings['COFF'],
+            loff=lrit_settings['LOFF'],
+            x=x,
+            y=y
+        )
+
+        (r,g,b) = img.getpixel((c,l))
+        intensity = (r/255.+g/255.+g/255.)/3.
+        return intensity
+
+    data = numpy.zeros((d, h, w), dtype=theano.config.floatX)
+    for k in xrange(d):
+        for j in xrange(h):
+            for i in xrange(w):
+                data[k,j,i] = getval(
+                    basepos[0]+(offset[0]+i)*meshsize[0],
+                    basepos[1]+(offset[1]+j)*meshsize[1],
+                    k
+                )
+
+    return data
 
 class Generator(object):
     def __init__(self, w=10, h=10, d=1):
@@ -45,7 +135,6 @@ class ConstantGenerator(Generator):
 
         return numpy.asarray(data, dtype=theano.config.floatX)
 
-
 class SinGenerator(Generator):
     def __init__(self, w=10, h=10, d=1):
         super(SinGenerator, self).__init__(w=w, h=h, d=d)
@@ -66,7 +155,7 @@ class SinGenerator(Generator):
         return numpy.asarray(data, dtype=theano.config.floatX)
 
 class RadarGenerator(Generator):
-    def __init__(self, dir, w=0, h=0, offset=(0,0,0)):
+    def __init__(self, dir, w=0, h=0, offset=(0,0,0), begin='201408010000', end='201408312330', step='5'):
         '''
 
         :param dir:
@@ -80,53 +169,32 @@ class RadarGenerator(Generator):
         self.dir = dir
         self.offset = offset
 
-        cwd = os.getcwd()
-        os.chdir(dir)
-        self.files = glob.glob('*.csv')
-        self.files.sort()
-        os.chdir(cwd)
-
         self.i = -1
         self.i += offset[2]
+
+        self.timestamps = tsrange(begin, end, step)
 
     def next(self):
         super(RadarGenerator, self).next()
 
         self.i = self.i + 1
-        if self.i >= len(self.files):
+        if self.i >= len(self.timestamps):
+            print('RadarGenerator: no more files to read, last timestamp={0}'.format(self.timestamps[-1]))
             raise StopIteration
 
-        data = None
+        timestamp = self.timestamps[self.i]
+        filename = timestamp+'.csv'
+        filepath = os.path.join(self.dir, filename)
 
-        file = self.files[self.i]
-        filepath = os.path.join(self.dir, file)
-        with open(filepath) as f:
-            reader = csv.reader(f)
-            datetime    = next(reader)  # ヘッダーの読み飛ばし
-            grid        = next(reader)  # ヘッダーの読み飛ばし
-            header      = next(reader)  # ヘッダーの読み飛ばし
-            location    = next(reader)  # ヘッダーの読み飛ばし
-            range       = next(reader)  # ヘッダーの読み飛ばし
+        if not os.path.isfile(filepath):
+            raise IOError("file not found: {0}".format(filepath))
 
-            n_rows, n_cols = map(lambda x: int(x), grid)
+        data = parse_radar(filepath, w=self.w, h=self.h, offset=self.offset)
 
-            w = self.w if 0 < self.w else n_cols
-            h = self.h if 0 < self.h else n_rows
-            w = w - self.offset[0] if n_cols < self.offset[0] + w else w
-            h = h - self.offset[1] if n_rows < self.offset[1] + h else h
-
-            data = numpy.zeros((1,h,w), dtype=theano.config.floatX)
-
-            for timeline in reader:
-                for row in xrange(n_rows):
-                    line = next(reader)
-                    if self.offset[1] <= row and row < h:
-                        data[0,row,:] = map(lambda x: float(x), line[self.offset[0]:self.offset[0]+w])
-
-        return data / 100.0
+        return data
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200)):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200), begin='201408010000', end='201408312330', step='30'):
         '''
 
         :param dir:
@@ -134,7 +202,7 @@ class SatelliteGenerator(Generator):
         :param h:
         :param offset: offsets of (x, y, timestep)
         :param meshsize: the size of each cell in the grid (unit: sec)
-        :param basepos: the lat long position of the northwest (unit: sec)
+        :param basepos: the lat long position of the northwest to extract (unit: sec)
         :return:
         '''
         # setting for POLAR(N,135) satellite images
@@ -154,132 +222,32 @@ class SatelliteGenerator(Generator):
         self.meshsize = meshsize
         self.basepos = basepos
 
-        cwd = os.getcwd()
-        os.chdir(dir)
-        self.files = glob.glob('*.jpg')
-        self.files.sort()
-        os.chdir(cwd)
-
         self.i = -1
         self.i += offset[2]
+
+        self.timestamps = tsrange(begin, end, step)
 
     def next(self):
         super(SatelliteGenerator, self).next()
 
         self.i = self.i + 1
-        if self.i >= len(self.files):
+        if self.i >= len(self.timestamps):
+            print('SatelliteGenerator: no more files to read, last timestamp={0}'.format(self.timestamps[-1]))
             raise StopIteration
 
-        file = self.files[self.i]
-        filepath = os.path.join(self.dir, file)
-        img = Image.open(filepath)
+        timestamp = self.timestamps[self.i]
+        filename = timestamp+".jpg"
+        filepath = os.path.join(self.dir, filename)
 
-        def sec2degree(sec):
-            return (sec/3600.)
+        if not os.path.isfile(filepath):
+            raise IOError("file not found: {0}".format(filepath))
 
-        def getval(lon, lat, d):
-            '''
-            get the image intensity at (lon,lat) in secs
-            '''
-            x,y = lrit.lonlat2xy(
-                prj_dir=self.lrit_settings['prj_dir'],
-                prj_lon=self.lrit_settings['prj_lon'],
-                lon=sec2degree(lon),
-                lat=sec2degree(lat),
-            )
-            c,l = lrit.xy2cl(
-                cfac=self.lrit_settings['CFAC'],
-                lfac=self.lrit_settings['LFAC'],
-                coff=self.lrit_settings['COFF'],
-                loff=self.lrit_settings['LOFF'],
-                x=x,
-                y=y
-            )
-
-            (r,g,b) = img.getpixel((c,l))
-            intensity = (r/255.+g/255.+g/255.)/3.
-            return intensity
-
-        data = numpy.zeros((self.d, self.h, self.w), dtype=theano.config.floatX)
-        for k in xrange(self.d):
-            for j in xrange(self.h):
-                for i in xrange(self.w):
-                    data[k,j,i] = getval(
-                        self.basepos[0]+(self.offset[0]+i)*self.meshsize[0],
-                        self.basepos[1]+(self.offset[1]+j)*self.meshsize[1],
-                        k
-                    )
+        data = parse_satellite(filepath, w=self.w, h=self.h, d=self.d,
+                               offset=self.offset, meshsize=self.meshsize,
+                               basepos=self.basepos, lrit_settings=self.lrit_settings)
 
         return data
 
 
-def gen_dataset(t_in=5, w=10, h=10, offset=(0,0,0), t_out=15):
-    '''
-    generate dataset using RadarGenerator, SatelliteGenerator
-    :return:
-    '''
-
-    DATA_WIDTH = 120  # width of the original csv data (radar)
-    DATA_HEIGHT = 120 # height of the original csv data (radar)
-
-    input_width = DATA_WIDTH-offset[0]
-    input_height= DATA_HEIGHT-offset[1]
-
-    # calculate patchsize
-    patchsize = (int(input_width / w), int(input_height / h))
-    n_patches = numpy.prod(patchsize)
-    step = t_in + t_out
-
-    # initialize generators
-    g_radar = RadarGenerator("../data/radar", w=input_width, h=input_height, offset=offset)
-
-    # initialize dataset
-    data_x = []
-    data_y = []
-
-    # a function to append cropped data to lists
-    def append_patches(lists, data):
-        assert len(lists) == n_patches
-
-        k = 0
-        for j in xrange(patchsize[1]):
-            for i in xrange(patchsize[0]):
-                bound_x = (i*w, (i+1)*w)
-                bound_y = (i*h, (i+1)*h)
-                patch = data[:, bound_y[0]:bound_y[1], bound_x[0]:bound_x[1]]
-                lists[k].append(patch)
-                k += 1
-
-    print('Begin generating dataset\n')
-
-    # generate data
-    for i,radar in enumerate(g_radar):
-        print('[{0}]'.format(i)),
-
-        if i % step == 0:
-            inputs = [[] for _ in xrange(n_patches)]
-            outputs = [[] for _ in xrange(n_patches)]
-
-        if len(inputs[0]) < t_in:
-            append_patches(inputs, radar)
-        elif len(outputs[0]) < t_out:
-            append_patches(outputs, radar)
-
-        if i % step == step-1:
-            for input,output in zip(inputs,outputs):
-                data_x.append(input)
-                data_y.append(output)
-            print(' --> appended to dataset, {0} data in total'.format(len(data_x)))
-
-    print('\nend generating dataset')
-    print('{0} data in total'.format(len(data_x)))
-
-    return numpy.asarray(data_x, dtype=theano.config.floatX), numpy.asarray(data_y, dtype=theano.config.floatX)
-
-
 if __name__ == '__main__':
-    print('generating dataset\n')
-    outfile = 'dataset.npz'
-    dataset = gen_dataset()
-    numpy.savez(outfile, dataset=dataset)
-    print('\ndone, output file: {0}'.format(outfile))
+    pass
