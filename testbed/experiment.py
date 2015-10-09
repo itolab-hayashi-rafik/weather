@@ -100,12 +100,9 @@ def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_
     return (train, valid, test)
 
 def exp_moving_mnist(
-        # train_dataset='../data/moving_mnist/out/moving-mnist-train.npz',
-        # valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
-        # test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
-        train_dataset='../data/weather_data/out_radar/dataset-train.npz',
-        valid_dataset='../data/weather_data/out_radar/dataset-valid.npz',
-        test_dataset='../data/weather_data/out_radar/dataset-test.npz',
+        train_dataset='../data/moving_mnist/out/moving-mnist-train.npz',
+        valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
+        test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
         patch_size=(4,4),
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
@@ -298,19 +295,26 @@ if __name__ == '__main__':
         print("Usage: $ python {0} [1|2|3|4|5|6]".format(argv[0]))
         quit()
 
+    train_dataset='../data/weather_data/out_sat1/dataset-train.npz'
+    valid_dataset='../data/weather_data/out_sat1/dataset-valid.npz'
+    test_dataset='../data/weather_data/out_sat1/dataset-test.npz'
+    patchsize = (8,8)
+
+    n_feature_maps = numpy.prod(patchsize)
+
     exp = int(argv[1])
     if exp == 1:
-        filter_shapes = [(256,16,5,5)]
+        filter_shapes = [(256,n_feature_maps,5,5)]
     elif exp == 2:
-        filter_shapes = [(128,16,5,5),(128,128,5,5)]
+        filter_shapes = [(128,n_feature_maps,5,5),(128,128,5,5)]
     elif exp == 3:
-        filter_shapes = [(128,16,5,5),(64,128,5,5),(64,64,5,5)]
+        filter_shapes = [(128,n_feature_maps,5,5),(64,128,5,5),(64,64,5,5)]
     elif exp == 4:
-        filter_shapes = [(128,16,9,9),(128,128,9,9)]
+        filter_shapes = [(128,n_feature_maps,9,9),(128,128,9,9)]
     elif exp == 5:
-        filter_shapes = [(128,16,9,9),(64,128,9,9),(64,64,9,9)]
+        filter_shapes = [(128,n_feature_maps,9,9),(64,128,9,9),(64,64,9,9)]
     elif exp == 6:
-        filter_shapes = [(64,16,3,3),(64,64,3,3)]
+        filter_shapes = [(64,n_feature_maps,3,3),(64,64,3,3)]
     else:
         raise NotImplementedError
 
@@ -319,5 +323,11 @@ if __name__ == '__main__':
     print('Save file: {0}'.format(saveto))
 
     print('begin experiment')
-    exp_moving_mnist(filter_shapes=filter_shapes, saveto=saveto)
+    exp_moving_mnist(
+        train_dataset=train_dataset,
+        valid_dataset=valid_dataset,
+        test_dataset=test_dataset,
+        patch_size=patchsize,
+        filter_shapes=filter_shapes,
+        saveto=saveto)
     print('finish experiment')
