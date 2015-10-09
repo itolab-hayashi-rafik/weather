@@ -17,7 +17,7 @@ if __name__ == '__main__':
     patchsize = (8,8)
 
     n_feature_maps = patchsize[0]*patchsize[1]
-    filter_shapes = [(64,n_feature_maps,3,3),(64,64,3,3)]
+    filter_shapes = [(32,n_feature_maps,3,3),(32,32,3,3)]
 
     now = datetime.datetime.today()
     saveto = "out/{0}-states-{1}.npz".format(__file__,now.strftime('%Y%m%d%I%M%S'))
