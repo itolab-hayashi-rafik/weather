@@ -15,18 +15,18 @@ weather dataset generator
 
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
-                 begin='201408010000', end='201408312330', step='5'):
+                 begin='201408010000', end='201408312330', step='30'):
         self.generators = []
-        self.generators += [{
-            'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                        begin=begin, end=end, step=step),
-            'step': 1
-        }]
         # self.generators += [{
-        #     'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-        #                                     begin=begin, end=end, step=step),
+        #     'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+        #                                 begin=begin, end=end, step=step),
         #     'step': 1
         # }]
+        self.generators += [{
+            'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                            begin=begin, end=end, step=step),
+            'step': 1
+        }]
         # self.generators += [{
         #     'generator': SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
         #                                     begin=begin, end=end, step=step),
@@ -80,7 +80,15 @@ def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
 
     print('output file is available at: {0}'.format(path))
 
-def generator(seqnum=8741, seqdim=(20, 1, 120, 120), offset=(0,0,0), savedir='out'):
+def normalize(seqs):
+    # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
+    assert 5 == seqs.ndim
+    zmax = numpy.max(seqs)
+    zmin = numpy.min(seqs)
+    normalized = (seqs - zmin) / (zmax - zmin)
+    return zmin, zmax, normalized
+
+def generator(seqnum=15000, seqdim=(10, 1, 120, 120), offset=(0,0,0), input_seq_len=5, output_seq_len=5, savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
@@ -117,24 +125,35 @@ def generator(seqnum=8741, seqdim=(20, 1, 120, 120), offset=(0,0,0), savedir='ou
         seqs[i, :, :, :, :] = numpy.asarray(frames, dtype=numpy.float32)
         print('created')
 
-        frames.pop(0)
-        fill_frames()
+        try:
+            frames.pop(0)
+            fill_frames()
+        except StopIteration:
+            seqs = seqs[:i]
+            seqnum = i
+            break
 
-        if savedir is not '':
-            if i < 100:
-                for d in xrange(seqdim[1]):
-                    outfile = savedir + "/" + str(i) + "-" + str(d) + ".gif"
-                    gifmaker.save_gif(seqs[i, :, d, :, :], outfile)
-                    print('  --> saved to {0}'.format(outfile))
+    print('done. {0} sequences in total'.format(seqnum))
+
+    zmin, zmax, seqs = normalize(seqs)
+    print('normlization:')
+    print('  zmin={0}, zmax={1}'.format(zmin, zmax))
+
+    if savedir is not '':
+        for i in xrange(100):
+            for d in xrange(seqdim[1]):
+                outfile = savedir + "/" + str(i) + "-" + str(d) + ".gif"
+                gifmaker.save_gif(seqs[i, :, d, :, :], outfile)
+                print('  --> saved to {0}'.format(outfile))
 
     if savedir is not '':
         cut1 = int(seqnum*0.8)
         cut2 = int(seqnum*0.9)
-        save_to_numpy_format(seqs[:cut1], 10, 10, savedir + "/dataset-train.npz")
-        save_to_numpy_format(seqs[cut1:cut2], 10, 10, savedir + "/dataset-valid.npz")
-        save_to_numpy_format(seqs[cut2:], 10, 10, savedir + "/dataset-test.npz")
+        save_to_numpy_format(seqs[:cut1], input_seq_len, output_seq_len, savedir + "/dataset-train.npz")
+        save_to_numpy_format(seqs[cut1:cut2], input_seq_len, output_seq_len, savedir + "/dataset-valid.npz")
+        save_to_numpy_format(seqs[cut2:], input_seq_len, output_seq_len, savedir + "/dataset-test.npz")
     else:
-        return seqs
+        return zmin, zmax, seqs
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
