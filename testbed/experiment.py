@@ -295,7 +295,7 @@ if __name__ == '__main__':
     argc = len(argv) # 引数の個数
 
     if argc <= 1:
-        print("Usage: $ python {0} [1|2|3|4|5]".format(argv[0]))
+        print("Usage: $ python {0} [1|2|3|4|5|6]".format(argv[0]))
         quit()
 
     exp = int(argv[1])
@@ -310,7 +310,7 @@ if __name__ == '__main__':
     elif exp == 5:
         filter_shapes = [(128,16,9,9),(64,128,9,9),(64,64,9,9)]
     elif exp == 6:
-        filter_shapes = [(1,16,5,5)]
+        filter_shapes = [(64,16,3,3),(64,64,3,3)]
     else:
         raise NotImplementedError
 
