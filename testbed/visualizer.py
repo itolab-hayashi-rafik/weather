@@ -2,7 +2,7 @@ import time
 import numpy
 import pylab as plt
 
-from generator import SinGenerator, RadarGenerator
+from generator import SinGenerator, RadarGenerator, SatelliteGenerator
 
 VIS_DEPTH = 0
 LINE_DEFS = ['b.-', 'r.-', 'g.-']
@@ -235,11 +235,12 @@ class Visualizer:
 
 
 if __name__ == '__main__':
-    w = 28
-    h = 28
+    w = 280
+    h = 280
     delay = 0.1
-    gen = SinGenerator(w=w, h=h, d=1)
+    # gen = SinGenerator(w=w, h=h, d=1)
     # gen = RadarGenerator('../data/radar', w=w, h=h, offset=(0,80,0))
+    gen = SatelliteGenerator('../data/eisei_PS01IR1', w=w, h=h, offset=(0,0,0))
     vis = Visualizer(w=w, h=h, t_out=2)
 
     time.sleep(10)

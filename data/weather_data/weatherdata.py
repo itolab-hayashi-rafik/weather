@@ -1,5 +1,8 @@
 __author__ = 'masayuki'
 import os
+import time
+import calendar
+from datetime import datetime
 
 import numpy
 
@@ -23,22 +26,28 @@ def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
     clips[1, :, 1] = output_seq_len
     numpy.savez_compressed(path, dims=dims, input_raw_data=input_raw_data, clips=clips)
 
-def generate_sequence(seqdim, g_radar, g_sat1, g_sat2):
+def generate_sequence(seqdim, steps, g_radar, g_sat1, g_sat2):
     seq = numpy.zeros(seqdim, dtype=numpy.float32)
-    for i,(radar, sat1, sat2) in enumerate(zip(g_radar, g_sat1, g_sat2)):
+    radar = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
+    sat1 = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
+    sat2 = numpy.zeros((1,) + seqdim[2:], dtype=numpy.float32)
+    for i in xrange(seqdim[0]):
+        radar = g_radar.next() if i % steps[0] == 0 else radar
+        sat1 = g_sat1.next() if i % steps[1] == 0 else sat1
+        sat2 = g_sat2.next() if i % steps[2] == 0 else sat2
         seq[i, :, :, :] = numpy.concatenate([radar, sat1, sat2], axis=0)
-        if (i+1) % seqdim[0] == 0:
-            seq = numpy.asarray(seq, dtype=numpy.float64)
-            break
-    return seq
+    return numpy.asarray(seq, dtype=numpy.float64)
 
-def generator(seqnum=15000, seqdim=(20, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS", savedir='out'):
+def generator(seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), steps=(1,3,3), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS", savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
     :param seqdim: (n_timesteps, height, width)
     :param offset: (n_timesteps, top, left)
+    :param steps: (step for radar, step for sat1, step for sat2)
     :param radar_dir:
+    :param sat1_dir:
+    :param sat2_dir:
     :param savedir:
     :return:
     '''
@@ -53,11 +62,15 @@ def generator(seqnum=15000, seqdim=(20, 3, 16, 16), offset=(0,0,0), radar_dir='.
     print('... Generating sequences')
     seq = numpy.zeros((seqnum,) + seqdim, dtype=numpy.float32)
     for i in range(seqnum):
-        seq[i, :, :, :, :] = generate_sequence(seqdim, g_radar, g_sat1, g_sat2)
+        print('sequence {0} ...'.format(i)),
+        seq[i, :, :, :, :] = generate_sequence(seqdim, steps, g_radar, g_sat1, g_sat2)
+        print('created')
         if savedir is not '':
             if i < 100:
                 for d in xrange(seqdim[1]):
-                    gifmaker.save_gif(seq[i, :, d, :, :], savedir + "/" + str(i) + "-" + str(d) + ".gif")
+                    outfile = savedir + "/" + str(i) + "-" + str(d) + ".gif"
+                    gifmaker.save_gif(seq[i, :, d, :, :], outfile)
+                    print('  --> saved to {0}'.format(outfile))
 
     if savedir is not '':
         save_to_numpy_format(seq[:10000], 10, 10, savedir + "/moving-mnist-train.npz")
@@ -66,6 +79,19 @@ def generator(seqnum=15000, seqdim=(20, 3, 16, 16), offset=(0,0,0), radar_dir='.
     else:
         return seq
 
+def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
+    tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
+    tend = int(calendar.timegm(datetime.strptime(end, "%Y%m%d%H%M").timetuple()))
+    tstep = int(step*60)
+
+    for t in xrange(tbegin, tend, tstep):
+        stim = time.gmtime(t)
+        tim = time.strftime("%Y%m%d%H%M", stim)
+        filename = tim + ".csv"
+        filepath = dir + "/" + filename
+        if not os.path.isfile(filepath):
+            print('file '+filepath+' does not exist')
 
 if __name__ == '__main__':
-    generator()
+    file_check()
+    # generator()
