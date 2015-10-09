@@ -232,7 +232,7 @@ def exp_moving_mnist(
 
                 if numpy.mod(uidx, dispFreq) == 0:
                     print('Epoch {0}/{1}, Update {2}/{3}, took {4} secs, Cost: {5}'
-                          .format(eidx+1, max_epochs, bidx, len(kf), (batch_end_time  - batch_start_time), cost))
+                          .format(eidx+1, max_epochs, bidx+1, len(kf), (batch_end_time  - batch_start_time), cost))
                     pass
 
                 if saveto and numpy.mod(uidx, saveFreq) == 0:
@@ -259,7 +259,8 @@ def exp_moving_mnist(
                         best_p = zzip(model.params)
                         bad_counter = 0
 
-                    print(" (validtion) Train: {0}, Valid: {1}, Test: {2}".format(train_err, valid_err, test_err))
+                    print(" (validtion) Epoch {0}/{1}, Update {2}/{3}, Train: {4}, Valid: {5}, Test: {6}"
+                          .format(eidx+1, max_epochs, bidx+1, len(kf), train_err, valid_err, test_err))
 
                     if (len(history_errs) > patience and
                                 valid_err >= numpy.array(history_errs)[:-patience].min()):
