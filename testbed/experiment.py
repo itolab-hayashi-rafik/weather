@@ -100,9 +100,12 @@ def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_
     return (train, valid, test)
 
 def exp_moving_mnist(
-        train_dataset='../data/moving_mnist/out/moving-mnist-train.npz',
-        valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
-        test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
+        # train_dataset='../data/moving_mnist/out/moving-mnist-train.npz',
+        # valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz',
+        # test_dataset='../data/moving_mnist/out/moving-mnist-test.npz',
+        train_dataset='../data/weather_data/out_radar/dataset-train.npz',
+        valid_dataset='../data/weather_data/out_radar/dataset-valid.npz',
+        test_dataset='../data/weather_data/out_radar/dataset-test.npz',
         patch_size=(4,4),
         filter_shapes=[(1,1,3,3)],
         saveto='out/states.npz',
