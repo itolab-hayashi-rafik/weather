@@ -126,7 +126,7 @@ def exp_moving_mnist(
     numpy_rng = numpy.random.RandomState(1000)
     theano_rng = RandomStreams(seed=1000)
 
-    print('params: \n{0}'.format(locals()))
+    print('params: {0}'.format(locals()))
 
     # load dataset
     print('loading dataset...'),
@@ -295,10 +295,10 @@ if __name__ == '__main__':
         print("Usage: $ python {0} [1|2|3|4|5|6]".format(argv[0]))
         quit()
 
-    train_dataset='../data/weather_data/out_sat1/dataset-train.npz'
-    valid_dataset='../data/weather_data/out_sat1/dataset-valid.npz'
-    test_dataset='../data/weather_data/out_sat1/dataset-test.npz'
-    patchsize = (8,8)
+    train_dataset='../data/moving_mnist/out/moving-mnist-train.npz'
+    valid_dataset='../data/moving_mnist/out/moving-mnist-valid.npz'
+    test_dataset='../data/moving_mnist/out/moving-mnist-test.npz'
+    patchsize = (4,4)
 
     n_feature_maps = numpy.prod(patchsize)
 
