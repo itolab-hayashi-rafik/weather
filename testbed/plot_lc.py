@@ -85,7 +85,7 @@ def parse_log(log_file, unit='minibatch'):
                 groups = m_train_valid.groups()
                 # 'Epoch 32/5000, Update 624/625, took 6.02633500099 secs, Cost: 3698.87304688'
                 # --> ('32', '5000', '624', '625', '6.02633500099', '3698.87304688')
-                index = get_index(groups[0], groups[1], groups[2], groups[3])
+                index = get_index(groups[0], groups[2], groups[3])
                 value = float(groups[5])
 
                 train_costs[0].append(index)
@@ -95,7 +95,7 @@ def parse_log(log_file, unit='minibatch'):
                 groups = m_test.groups()
                 # ' (validtion) Epoch 32/5000, Update 624/625, Train: 4013.97666211, Valid: 4962.40923047, Test: 4918.42494234'
                 # --> ('32', '5000', '624', '625', '4013.97666211', '4962.40923047', '4918.42494234')
-                index = get_index(groups[0], groups[1], groups[2], groups[3])
+                index = get_index(groups[0], groups[2], groups[3])
                 train_value = float(groups[4])
                 valid_value = float(groups[5])
                 test_value = float(groups[6])
