@@ -30,6 +30,8 @@ def zzip(params):
                 rval.append(param.get_value())
             elif isinstance(param, numpy.ndarray):
                 rval.append(param.copy())
+            else:
+                rval.append(param)
     elif isinstance(params, dict):
         rval = {}
         for key, value in params.items():
@@ -39,6 +41,8 @@ def zzip(params):
                 rval[key] = value.get_value()
             elif isinstance(value, numpy.ndarray):
                 rval[key] = value.copy()
+            else:
+                rval[key] = value
     else:
         rval = None
     return rval
