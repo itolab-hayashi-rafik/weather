@@ -141,7 +141,7 @@ def normalize(seqs):
     normalized = (seqs - zmin) / (zmax - zmin)
     return zmin, zmax, normalized
 
-def generator(seqnum=15000, seqdim=(10, 2, 120, 120), offset=(0,0,0), step=5, input_seq_len=5, output_seq_len=5, savedir='out'):
+def generator(seqnum=15000, seqdim=(10, 2, 120, 120), offset=(0,0,0), step=5, input_seq_len=10, output_seq_len=10, savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
