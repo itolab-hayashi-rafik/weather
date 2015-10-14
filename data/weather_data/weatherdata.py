@@ -14,60 +14,54 @@ from generator import SinGenerator, RadarGenerator, SatelliteGenerator
 weather dataset generator
 '''
 
-class GeneratorInterpolator(object):
-    def __init__(self, generator, supply_num, method='linear'):
-        '''
-        :param generator: an instanceof Generator
-        :param supply_num: how many frames to supply between frames
-        '''
-        self.generator = generator
-        self.xs = numpy.asarray(range(0,generator.w))
-        self.ys = numpy.asarray(range(0,generator.h))
-        self.n_channels = generator.d
-        self.supply_num = supply_num
+def interpolate(generator, supply_num, method='linear'):
+    '''
+    Interpolate a generator
+    :param generator: an instance of Generator
+    :param supply_num: number of frames to supply between each generation
+    :param method: 'linear' or 'nearest'
+    :return:
+    '''
+    xs = numpy.asarray(range(0,generator.w))
+    ys = numpy.asarray(range(0,generator.h))
+    n_channels = generator.d
+    assert method in ['linear', 'nearest']
 
-        assert method in ['linear', 'nearest']
-        self.method = method
+    prev_instance = None
+    next_instance = generator.next()
+    supply_queue = []
+    supply_f = [None for _ in xrange(n_channels)]
 
-        self.prev_instance = None
-        self.next_instance = self.generator.next()
-        self.supply_queue = []
-        self.supply_f = [None for _ in xrange(self.n_channels)]
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        if len(self.supply_queue) == 0:
+    while True:
+        if len(supply_queue) == 0:
             # retrieve next available frame
-            self.prev_instance = self.next_instance
-            self.next_instance = None
-            while self.next_instance is None:
+            prev_instance = next_instance
+            next_instance = None
+            while next_instance is None:
                 try:
-                    self.next_instance = self.generator.next()
+                    next_instance = generator.next()
                 except IOError:
-                    self.next_instance = None
-                ref = 0 if len(self.supply_queue) == 0 else self.supply_queue[-1]
-                self.supply_queue += range(ref, ref+self.supply_num+1)
+                    next_instance = None
+                except StopIteration:
+                    yield prev_instance
+                    break
+                ref = 0 if len(supply_queue) == 0 else supply_queue[-1]+1
+                supply_queue += range(ref, ref+supply_num)
 
             # build interpolator
-            ts = numpy.asarray([self.supply_queue[0], self.supply_queue[-1]])
-            for channel in xrange(self.n_channels):
-                seq = numpy.asarray([self.prev_instance[channel], self.next_instance[channel]])
-                self.supply_f[channel] = RegularGridInterpolator((ts,self.ys,self.xs), seq, method=self.method)
+            ts = numpy.asarray([supply_queue[0], supply_queue[-1]+1])
+            for channel in xrange(n_channels):
+                seq = numpy.asarray([prev_instance[channel], next_instance[channel]])
+                supply_f[channel] = RegularGridInterpolator((ts,ys,xs), seq, method=method)
 
-            # remove redundant data
-            self.supply_queue.pop(-1)
-
-        t = self.supply_queue.pop(0)
-        pts = numpy.array([[[(t,y,x) for x in self.xs] for y in self.ys]])
+        t = supply_queue.pop(0)
+        print('### t={0}'.format(t))
+        pts = numpy.array([[[(t,y,x) for x in xs] for y in ys]])
         frame = []
-        for channel in xrange(self.n_channels):
-            frame.append(self.supply_f[channel](pts)[0])
+        for channel in xrange(n_channels):
+            frame.append(supply_f[channel](pts)[0])
 
-        return numpy.asarray(frame)
-
-
+        yield numpy.asarray(frame)
 
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
@@ -225,23 +219,22 @@ def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5)
             print('file '+filepath+' does not exist')
 
 def test_intrp(supply_num=4):
-    # g_radar = RadarGenerator("../radar", w=16, h=16, begin="201408010000", end="201408312330", step="5")
-    # g_radar2= RadarGenerator("../radar", w=16, h=16, begin="201408010000", end="201408312330", step="5")
-    # g_intrp = GeneratorInterpolator(g_radar2, supply_num, method='linear')
-    g_sin1 = SinGenerator(w=5,h=5,d=1)
-    g_sin2 = SinGenerator(w=5,h=5,d=1)
-    g_intrp = GeneratorInterpolator(g_sin2, supply_num, method='linear')
+    g_target = RadarGenerator("../radar", w=5, h=5, begin="201408010000", end="201408312330", step="5")
+    g_target2= RadarGenerator("../radar", w=5, h=5, begin="201408010000", end="201408312330", step="5")
+    g_intrp = interpolate(g_target2, supply_num, method='linear')
+    # g_target = SinGenerator(w=5,h=5,d=1)
+    # g_target2= SinGenerator(w=5,h=5,d=1)
+    # g_intrp = interpolate(g_target2, supply_num, method='linear')
 
     for i,data_intrp in enumerate(g_intrp):
         print(' Intrp:{0}'.format(data_intrp))
         if i % supply_num == 0:
             try:
-                data_radar = g_sin1.next()
+                data_radar = g_target.next()
                 print(' Radar:{0}'.format(data_radar))
                 assert numpy.array_equal(data_intrp, data_radar)
             except IOError as e:
                 print(' Radar:{0}'.format(e))
-            print('\n')
 
 if __name__ == '__main__':
     # file_check()
