@@ -58,7 +58,6 @@ def interpolate(generator, supply_num, method='linear'):
                 supply_f[channel] = RegularGridInterpolator((ts,ys,xs), seq, method=method)
 
         t = supply_queue.pop(0)
-        print('### t={0}'.format(t))
         pts = numpy.array([[[(t,y,x) for x in xs] for y in ys]])
         frame = []
         for channel in xrange(n_channels):
@@ -68,30 +67,38 @@ def interpolate(generator, supply_num, method='linear'):
 
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
-                 begin='201408010000', end='201408312330', step='5'):
+                 begin='201408010000', end='201408312330', step=5, method='linear'):
         self.generators = []
         self.generators += [{
-            'generator': interpolate(RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                        begin=begin, end=end, step='5'), supply_num=(5/int(step)-1), method='linear'),
-            'step': 1
+            'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                        begin=begin, end=end, step='5'),
+            'step': 5
         }]
         self.generators += [{
-            'generator': interpolate(SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                            begin=begin, end=end, step='30'), supply_num=(30/int(step)-1), method='linear'),
-            'step': 1
+            'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                            begin=begin, end=end, step='30'),
+            'step': 30
         }]
         # self.generators += [{
         #     'generator': SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-        #                                     begin=begin, end=end, step=step),
-        #     'step': 1
+        #                                     begin=begin, end=end, step='30'),
+        #     'step': 30
         # }]
 
         self.seqnum = seqnum
         self.seqdim = seqdim
+        self.step = step
+        self.method = method
 
         self.setup()
 
     def setup(self):
+        # interpolate generators
+        self._generators = []
+        for entry in self.generators:
+            generator = interpolate(entry['generator'], (entry['step']/self.step-1), method=self.method)
+            self._generators.append(generator)
+
         # initialize first frames with with zeros
         self.frames = [numpy.zeros((1,) + self.seqdim[2:], dtype=numpy.float32) for _ in self.generators]
 
@@ -102,21 +109,15 @@ class WeatherDataGenerator(object):
 
     def next(self):
         self.t = self.t + 1
-        err = False
 
         # generate frame by generators if necessary
-        for i,entry in enumerate(self.generators):
-            try:
-                if self.t % entry['step'] == 0:
-                    self.frames[i] = entry['generator'].next()
-            except IOError as err:
-                print('warning: IOError, {0}'.format(err))
-                err = True
+        for i,generator in enumerate(self._generators):
+            self.frames[i] = generator.next()
 
         # concatenate frames
         frame = numpy.concatenate(self.frames, axis=0)
 
-        return frame if not err else None
+        return frame
 
 def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
     # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
@@ -141,7 +142,7 @@ def normalize(seqs):
     normalized = (seqs - zmin) / (zmax - zmin)
     return zmin, zmax, normalized
 
-def generator(seqnum=15000, seqdim=(10, 1, 120, 120), offset=(0,0,0), input_seq_len=5, output_seq_len=5, savedir='out'):
+def generator(seqnum=15000, seqdim=(10, 2, 120, 120), offset=(0,0,0), step=5, input_seq_len=5, output_seq_len=5, savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
@@ -155,7 +156,7 @@ def generator(seqnum=15000, seqdim=(10, 1, 120, 120), offset=(0,0,0), input_seq_
     :return:
     '''
 
-    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset)
+    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset, step=step)
     frames = []
 
     def fill_frames():
@@ -239,7 +240,14 @@ def test_intrp(supply_num=0):
             except IOError as e:
                 print(' Radar:{0}'.format(e))
 
+def test_weather_data_generator():
+    gen = WeatherDataGenerator(step=1)
+
+    for i,data in enumerate(gen):
+        print('{0}, {1}'.format(i,data))
+
 if __name__ == '__main__':
     # file_check()
-    # generator()
-    test_intrp()
+    generator()
+    # test_intrp()
+    # test_weather_data_generator()
