@@ -35,35 +35,35 @@ def interpolate(generator, supply_num, method='linear'):
     supply_queue = []
     supply_f = [None for _ in xrange(n_channels)]
 
-    while True:
-        if len(supply_queue) == 0:
-            # retrieve next available frame
-            prev_instance = next_instance
-            next_instance = None
-            while next_instance is None:
-                try:
-                    next_instance = generator.next()
-                except IOError:
-                    next_instance = None
-                except StopIteration:
-                    yield prev_instance
-                    break
-                ref = 0 if len(supply_queue) == 0 else supply_queue[-1]+1
-                supply_queue += range(ref, ref+supply_num+1)
+    try:
+        while True:
+            if len(supply_queue) == 0:
+                # retrieve next available frame
+                prev_instance = next_instance
+                next_instance = None
+                while next_instance is None:
+                    try:
+                        next_instance = generator.next()
+                    except IOError:
+                        next_instance = None
+                    ref = 0 if len(supply_queue) == 0 else supply_queue[-1]+1
+                    supply_queue += range(ref, ref+supply_num+1)
 
-            # build interpolator
-            ts = numpy.asarray([supply_queue[0], supply_queue[-1]+1])
+                # build interpolator
+                ts = numpy.asarray([supply_queue[0], supply_queue[-1]+1])
+                for channel in xrange(n_channels):
+                    seq = numpy.asarray([prev_instance[channel], next_instance[channel]])
+                    supply_f[channel] = RegularGridInterpolator((ts,ys,xs), seq, method=method)
+
+            t = supply_queue.pop(0)
+            pts = numpy.array([[[(t,y,x) for x in xs] for y in ys]])
+            frame = []
             for channel in xrange(n_channels):
-                seq = numpy.asarray([prev_instance[channel], next_instance[channel]])
-                supply_f[channel] = RegularGridInterpolator((ts,ys,xs), seq, method=method)
+                frame.append(supply_f[channel](pts)[0])
 
-        t = supply_queue.pop(0)
-        pts = numpy.array([[[(t,y,x) for x in xs] for y in ys]])
-        frame = []
-        for channel in xrange(n_channels):
-            frame.append(supply_f[channel](pts)[0])
-
-        yield numpy.asarray(frame)
+            yield numpy.asarray(frame)
+    except StopIteration:
+        yield prev_instance
 
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
@@ -136,7 +136,6 @@ def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
 
 def normalize(seqs):
     # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
-    assert 5 == seqs.ndim
     zmax = numpy.max(seqs)
     zmin = numpy.min(seqs)
     normalized = (seqs - zmin) / (zmax - zmin)
@@ -189,9 +188,14 @@ def generator(seqnum=15000, seqdim=(10, 2, 120, 120), offset=(0,0,0), step=5, in
 
     print('done. {0} sequences in total'.format(seqnum))
 
-    zmin, zmax, seqs = normalize(seqs)
-    print('normlization:')
-    print('  zmin={0}, zmax={1}'.format(zmin, zmax))
+    zmins = [None for _ in xrange(seqdim[1])]
+    zmaxs = [None for _ in xrange(seqdim[1])]
+    for channel in xrange(seqdim[1]):
+        zmin, zmax, seqs[:,:,channel,:,:] = normalize(seqs[:,:,channel,:,:])
+        zmins[channel] = zmin
+        zmaxs[channel] = zmax
+        print('normlization (channel {0}):'.format(channel))
+        print('  zmin={0}, zmax={1}'.format(zmin, zmax))
 
     if savedir is not '':
         for i in xrange(100):
@@ -207,7 +211,7 @@ def generator(seqnum=15000, seqdim=(10, 2, 120, 120), offset=(0,0,0), step=5, in
         save_to_numpy_format(seqs[cut1:cut2], input_seq_len, output_seq_len, savedir + "/dataset-valid.npz")
         save_to_numpy_format(seqs[cut2:], input_seq_len, output_seq_len, savedir + "/dataset-test.npz")
     else:
-        return zmin, zmax, seqs
+        return zmins, zmaxs, seqs
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
