@@ -22,6 +22,9 @@ def interpolate(generator, supply_num, method='linear'):
     :param method: 'linear' or 'nearest'
     :return:
     '''
+    assert generator is not None
+    assert supply_num >= 0
+
     xs = numpy.asarray(range(0,generator.w))
     ys = numpy.asarray(range(0,generator.h))
     n_channels = generator.d
@@ -46,7 +49,7 @@ def interpolate(generator, supply_num, method='linear'):
                     yield prev_instance
                     break
                 ref = 0 if len(supply_queue) == 0 else supply_queue[-1]+1
-                supply_queue += range(ref, ref+supply_num)
+                supply_queue += range(ref, ref+supply_num+1)
 
             # build interpolator
             ts = numpy.asarray([supply_queue[0], supply_queue[-1]+1])
@@ -65,16 +68,16 @@ def interpolate(generator, supply_num, method='linear'):
 
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
-                 begin='201408010000', end='201408312330', step='30'):
+                 begin='201408010000', end='201408312330', step='5'):
         self.generators = []
-        # self.generators += [{
-        #     'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-        #                                 begin=begin, end=end, step=step),
-        #     'step': 1
-        # }]
         self.generators += [{
-            'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                            begin=begin, end=end, step=step),
+            'generator': interpolate(RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                        begin=begin, end=end, step='5'), supply_num=(5/int(step)-1), method='linear'),
+            'step': 1
+        }]
+        self.generators += [{
+            'generator': interpolate(SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                            begin=begin, end=end, step='30'), supply_num=(30/int(step)-1), method='linear'),
             'step': 1
         }]
         # self.generators += [{
@@ -218,7 +221,7 @@ def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5)
         if not os.path.isfile(filepath):
             print('file '+filepath+' does not exist')
 
-def test_intrp(supply_num=4):
+def test_intrp(supply_num=0):
     g_target = RadarGenerator("../radar", w=5, h=5, begin="201408010000", end="201408312330", step="5")
     g_target2= RadarGenerator("../radar", w=5, h=5, begin="201408010000", end="201408312330", step="5")
     g_intrp = interpolate(g_target2, supply_num, method='linear')
@@ -228,7 +231,7 @@ def test_intrp(supply_num=4):
 
     for i,data_intrp in enumerate(g_intrp):
         print(' Intrp:{0}'.format(data_intrp))
-        if i % supply_num == 0:
+        if numpy.mod(i,supply_num+1) == 0:
             try:
                 data_radar = g_target.next()
                 print(' Radar:{0}'.format(data_radar))
