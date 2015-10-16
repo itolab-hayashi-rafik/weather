@@ -89,13 +89,15 @@ def parse_satellite(filepath, w, h, d, offset, meshsize, basepos, lrit_settings)
         intensity = (r/255.+g/255.+g/255.)/3.
         return intensity
 
+    d = -1 if lrit_settings['prj_dir'] == 'N' else 1
+
     data = numpy.zeros((d, h, w), dtype=theano.config.floatX)
     for k in xrange(d):
         for j in xrange(h):
             for i in xrange(w):
                 data[k,j,i] = getval(
-                    basepos[0]+(offset[0]+i)*meshsize[0],
-                    basepos[1]+(offset[1]+j)*meshsize[1],
+                    basepos[0] +   (offset[0]+i)*meshsize[0],
+                    basepos[1] + d*(offset[1]+j)*meshsize[1],
                     k
                 )
 

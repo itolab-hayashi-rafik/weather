@@ -200,13 +200,15 @@ class SatelliteGenerator(Generator):
             intensity = (r/255.+g/255.+g/255.)/3.
             return intensity
 
+        d = -1 if self.lrit_settings['prj_dir'] == 'N' else 1
+
         data = numpy.zeros((self.d, self.h, self.w), dtype=theano.config.floatX)
         for k in xrange(self.d):
             for j in xrange(self.h):
                 for i in xrange(self.w):
                     data[k,j,i] = getval(
-                        self.basepos[0]+(self.offset[0]+i)*self.meshsize[0],
-                        self.basepos[1]+(self.offset[1]+j)*self.meshsize[1],
+                        self.basepos[0] +   (self.offset[0]+i)*self.meshsize[0],
+                        self.basepos[1] + d*(self.offset[1]+j)*self.meshsize[1],
                         k
                     )
 
