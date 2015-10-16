@@ -194,7 +194,7 @@ class RadarGenerator(Generator):
         return data
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200), begin='201408010000', end='201408312330', step='30'):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,127800), begin='201408010000', end='201408312330', step='30'):
         '''
 
         :param dir:
@@ -249,5 +249,20 @@ class SatelliteGenerator(Generator):
         return data
 
 
+def test_satellite_generator():
+    gen = SatelliteGenerator('../eisei_PS01IR1', w=120, h=120)
+
+    def dismissIOError(gen):
+        while True:
+            try:
+                yield gen.next()
+            except IOError as e:
+                yield 'IOError {0}'.format(e)
+            except StopIteration:
+                break
+
+    for i,sat in enumerate(dismissIOError(gen)):
+        print('{0}: {1}'.format(i, sat))
+
 if __name__ == '__main__':
-    pass
+    test_satellite_generator()

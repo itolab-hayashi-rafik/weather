@@ -126,7 +126,7 @@ class RadarGenerator(Generator):
         return data / 100.0
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,124200)):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,127800)):
         '''
 
         :param dir:
