@@ -66,7 +66,7 @@ def parse_satellite(filepath, w, h, d, offset, meshsize, basepos, lrit_settings)
     def sec2degree(sec):
         return (sec/3600.)
 
-    def getval(lon, lat, d):
+    def getval(lon, lat):
         '''
         get the image intensity at (lon,lat) in secs
         '''
@@ -86,20 +86,24 @@ def parse_satellite(filepath, w, h, d, offset, meshsize, basepos, lrit_settings)
         )
 
         (r,g,b) = img.getpixel((c,l))
-        intensity = (r/255.+g/255.+g/255.)/3.
-        return intensity
+
+        if d == 1:
+            intensity = (r/255.+g/255.+g/255.)/3.
+            return numpy.asarray([intensity], dtype=theano.config.floatX)
+        elif d == 3:
+            return numpy.asarray([r, g, b], dtype=theano.config.floatX)
+        else:
+            raise NotImplementedError
 
     o = -1 if lrit_settings['prj_dir'] == 'N' else 1
 
     data = numpy.zeros((d, h, w), dtype=theano.config.floatX)
-    for k in xrange(d):
-        for j in xrange(h):
-            for i in xrange(w):
-                data[k,j,i] = getval(
-                    basepos[0] +   (offset[0]+i)*meshsize[0],
-                    basepos[1] + o*(offset[1]+j)*meshsize[1],
-                    k
-                )
+    for j in xrange(h):
+        for i in xrange(w):
+            data[:,j,i] = getval(
+                basepos[0] +   (offset[0]+i)*meshsize[0],
+                basepos[1] + o*(offset[1]+j)*meshsize[1]
+            )
 
     return data
 
@@ -196,7 +200,7 @@ class RadarGenerator(Generator):
         return data
 
 class SatelliteGenerator(Generator):
-    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,127800), begin='201408010000', end='201408312330', step='30'):
+    def __init__(self, dir, w=10, h=10, offset=(0,0,0), meshsize=(45,30), basepos=(491400,127800), begin='201408010000', end='201408312330', step='30', mode='grayscale'):
         '''
 
         :param dir:
@@ -205,6 +209,7 @@ class SatelliteGenerator(Generator):
         :param offset: offsets of (x, y, timestep)
         :param meshsize: the size of each cell in the grid (unit: sec)
         :param basepos: the lat long position of the northwest to extract (unit: sec)
+        :param mode: 'grayscale' or 'rgb'
         :return:
         '''
         # setting for POLAR(N,135) satellite images
@@ -217,7 +222,13 @@ class SatelliteGenerator(Generator):
             'LOFF': -420
         }
 
-        super(SatelliteGenerator, self).__init__(w, h, 1)
+        assert mode in ['grayscale', 'rgb']
+        if mode == 'grayscale':
+            d = 1
+        elif mode == 'rgb':
+            d = 3
+
+        super(SatelliteGenerator, self).__init__(w, h, d)
         dir = os.path.join(os.path.dirname(__file__), dir)
         self.dir = dir
         self.offset = offset

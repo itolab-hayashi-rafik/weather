@@ -65,9 +65,25 @@ def interpolate(generator, supply_num, method='linear'):
     except StopIteration:
         yield prev_instance
 
+def skip(generator, skip_num):
+    '''
+    Skip a generator
+    :param generator: an instance of Generator
+    :param skip_num: number of frames to skip between each generation
+    :return:
+    '''
+    gen = interpolate(generator, 0)
+    try:
+        while True:
+            yield gen.next()
+            for _ in xrange(skip_num):
+                gen.next()
+    except StopIteration:
+        pass
+
 class WeatherDataGenerator(object):
     def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
-                 begin='201408010000', end='201408312330', step=5, method='linear'):
+                 begin='201408010000', end='201408312330', step=5, method='linear', mode='grayscale'):
         self.generators = []
         self.generators += [{
             'generator': RadarGenerator(radar_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
@@ -76,12 +92,12 @@ class WeatherDataGenerator(object):
         }]
         self.generators += [{
             'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                            begin=begin, end=end, step='30'),
+                                            begin=begin, end=end, step='30', mode=mode),
             'step': 30
         }]
         # self.generators += [{
         #     'generator': SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-        #                                     begin=begin, end=end, step='30'),
+        #                                     begin=begin, end=end, step='30', mode=mode),
         #     'step': 30
         # }]
 
@@ -96,7 +112,10 @@ class WeatherDataGenerator(object):
         # interpolate generators
         self._generators = []
         for entry in self.generators:
-            generator = interpolate(entry['generator'], (entry['step']/self.step-1), method=self.method)
+            if entry['step'] >= self.step:
+                generator = interpolate(entry['generator'], (entry['step']/self.step-1), method=self.method)
+            else:
+                generator = skip(entry['generator'], (self.step/entry['step']-1))
             self._generators.append(generator)
 
         # initialize first frames with with zeros
@@ -141,7 +160,7 @@ def normalize(seqs):
     normalized = (seqs - zmin) / (zmax - zmin)
     return zmin, zmax, normalized
 
-def generator(seqnum=15000, seqdim=(20, 2, 120, 120), offset=(0,0,0), step=5, input_seq_len=10, output_seq_len=10, savedir='out'):
+def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, input_seq_len=10, output_seq_len=10, mode='grayscale', savedir='out'):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
@@ -155,7 +174,7 @@ def generator(seqnum=15000, seqdim=(20, 2, 120, 120), offset=(0,0,0), step=5, in
     :return:
     '''
 
-    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset, step=step)
+    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset, step=step, mode=mode)
     frames = []
 
     def fill_frames():
@@ -213,6 +232,16 @@ def generator(seqnum=15000, seqdim=(20, 2, 120, 120), offset=(0,0,0), step=5, in
     else:
         return zmins, zmaxs, seqs
 
+def convert_to_multi_view():
+    f = numpy.load('dataset-train.npz')
+    input_raw_data = [f['input_raw_data'][:,[0],:,:], f['input_raw_data'][:,[1],:,:]]
+    dims = [f['dims'][:], f['dims'][:]]
+    dims[0][0][0] = 1
+    dims[1][0][0] = 1
+    clips = [f['clips'], f['clips']]
+    numpy.savez('dataset-train-view0.npz', clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
+    numpy.savez('dataset-train-view1.npz', clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
+
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
     tend = int(calendar.timegm(datetime.strptime(end, "%Y%m%d%H%M").timetuple()))
@@ -252,6 +281,26 @@ def test_weather_data_generator():
 
 if __name__ == '__main__':
     # file_check()
-    generator()
+    # generator()
     # test_intrp()
     # test_weather_data_generator()
+
+    seqnum =  15000
+    w = 120
+    h = 120
+
+    # number of frames to input and output
+    t_in = 10
+    t_out = 10
+
+    # generate grayscale radar+sat1 of every 5 minutes with interpolator
+    # generator(seqnum, (t_in+t_out, 2, w, h), step=5, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1')
+
+    # generate grayscale radar+sat1 of every 30 minutes without interpolator
+    # generator(seqnum, (t_in+t_out, 2, w, h), step=30, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1_step30')
+
+    # generate rgb radar+sat1 of every 5 minutes with interpolator
+    # generator(seqnum, (t_in+t_out, 4, w, h), step=5, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb')
+
+    # generate grayscale radar+sat1 of every 30 minutes without interpolator
+    generator(seqnum, (t_in+t_out, 4, w, h), step=30, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb_step30')
