@@ -220,6 +220,7 @@ def generate(seqnum=15000, seqdim=(20, 2, 120, 120), offset=(0,0,0), begin='2014
         os.makedirs(savedir)
 
     seqs = generator(**locals())
+    seqnum = seqs.shape[0]
     zmins, zmaxs = normalize(seqs)
 
     if savedir is not '':
@@ -252,6 +253,7 @@ def concat_generate(genargs=[{}], input_seq_len=10, output_seq_len=10, savedir='
         seqs[i] = generator(**args)
 
     seqs = numpy.concatenate(seqs, axis=0)
+    seqnum = seqs.shape[0]
     zmins, zmaxs = normalize(seqs)
 
     if savedir is not '':
