@@ -138,7 +138,7 @@ class WeatherDataGenerator(object):
 
         return frame
 
-def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
+def save_to_numpy_format(seq, input_seq_len, output_seq_len, zmaxs, zmins, path):
     # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
     assert 5 == seq.ndim
     assert input_seq_len + output_seq_len == seq.shape[1]
@@ -149,18 +149,27 @@ def save_to_numpy_format(seq, input_seq_len, output_seq_len, path):
     clips[0, :, 1] = input_seq_len
     clips[1, :, 0] = range(input_seq_len, input_raw_data.shape[0] + input_seq_len, seq.shape[1])
     clips[1, :, 1] = output_seq_len
-    numpy.savez_compressed(path, dims=dims, input_raw_data=input_raw_data, clips=clips)
+    numpy.savez_compressed(path, dims=dims, input_raw_data=input_raw_data, clips=clips, zmaxs=zmaxs, zmins=zmins)
 
     print('output file is available at: {0}'.format(path))
 
 def normalize(seqs):
     # seq is of shape (n_samples, n_timesteps, n_feature_maps, height, width)
-    zmax = numpy.max(seqs)
-    zmin = numpy.min(seqs)
-    normalized = (seqs - zmin) / (zmax - zmin)
-    return zmin, zmax, normalized
+    assert seqs.ndim == 5
 
-def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, input_seq_len=10, output_seq_len=10, mode='grayscale', savedir='out'):
+    zmaxs = [None for channel in xrange(seqs.shape[2])]
+    zmins = [None for channel in xrange(seqs.shape[2])]
+    for channel in xrange(seqs.shape[2]):
+        zmax = numpy.max(seqs)
+        zmin = numpy.min(seqs)
+        seqs[:,:,channel,:,:] = (seqs[:,:,channel,:,:] - zmin) / (zmax - zmin)
+        zmaxs[channel] = zmax
+        zmins[channel] = zmin
+        print('normlization (channel {0}):'.format(channel))
+        print('  zmin={0}, zmax={1}'.format(zmin, zmax))
+    return zmins, zmaxs
+
+def generator(seqnum, seqdim, offset, begin, end, step, input_seq_len, output_seq_len, mode):
     '''
     generate sequences of weather data
     :param seqnum: How many sequences to generate
@@ -173,8 +182,9 @@ def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, i
     :param savedir:
     :return:
     '''
+    print('generator(): '+str(locals()))
 
-    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset, step=step, mode=mode)
+    gen = WeatherDataGenerator(seqnum=seqnum, seqdim=seqdim, offset=offset, begin=begin, end=end, step=step, mode=mode)
     frames = []
 
     def fill_frames():
@@ -184,10 +194,6 @@ def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, i
                 del frames[:]
             else:
                 frames.append(frame)
-
-    # make output directory
-    if not os.path.isdir(savedir):
-        os.makedirs(savedir)
 
     print('... Generating sequences')
     fill_frames()
@@ -206,15 +212,15 @@ def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, i
             break
 
     print('done. {0} sequences in total'.format(seqnum))
+    return seqs[:seqnum]
 
-    zmins = [None for _ in xrange(seqdim[1])]
-    zmaxs = [None for _ in xrange(seqdim[1])]
-    for channel in xrange(seqdim[1]):
-        zmin, zmax, seqs[:,:,channel,:,:] = normalize(seqs[:,:,channel,:,:])
-        zmins[channel] = zmin
-        zmaxs[channel] = zmax
-        print('normlization (channel {0}):'.format(channel))
-        print('  zmin={0}, zmax={1}'.format(zmin, zmax))
+def generate(seqnum=15000, seqdim=(20, 2, 120, 120), offset=(0,0,0), begin='201408010000', end='201408312330', step=30, input_seq_len=10, output_seq_len=10, mode='grayscale', savedir='out'):
+    # make output directory
+    if not os.path.isdir(savedir):
+        os.makedirs(savedir)
+
+    seqs = generator(**locals())
+    zmins, zmaxs = normalize(seqs)
 
     if savedir is not '':
         for i in xrange(100):
@@ -226,9 +232,41 @@ def generator(seqnum=15000, seqdim=(20, 4, 120, 120), offset=(0,0,0), step=30, i
     if savedir is not '':
         cut1 = int(seqnum*0.8)
         cut2 = int(seqnum*0.9)
-        save_to_numpy_format(seqs[:cut1], input_seq_len, output_seq_len, savedir + "/dataset-train.npz")
-        save_to_numpy_format(seqs[cut1:cut2], input_seq_len, output_seq_len, savedir + "/dataset-valid.npz")
-        save_to_numpy_format(seqs[cut2:], input_seq_len, output_seq_len, savedir + "/dataset-test.npz")
+        save_to_numpy_format(seqs[:cut1], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-train.npz")
+        save_to_numpy_format(seqs[cut1:cut2], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-valid.npz")
+        save_to_numpy_format(seqs[cut2:], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-test.npz")
+    else:
+        return zmins, zmaxs, seqs
+
+def concat_generate(genargs=[{}], input_seq_len=10, output_seq_len=10, savedir='out'):
+    # make output directory
+    if not os.path.isdir(savedir):
+        os.makedirs(savedir)
+
+    seqs = [None for i in genargs]
+    for i,args in enumerate(genargs):
+        print('--------------------------')
+        print('Generating for dataset {0}'.format(i))
+        print('--------------------------')
+
+        seqs[i] = generator(**args)
+
+    seqs = numpy.concatenate(seqs, axis=0)
+    zmins, zmaxs = normalize(seqs)
+
+    if savedir is not '':
+        for i in xrange(100):
+            for d in xrange(seqs.shape[2]):
+                outfile = savedir + "/" + str(i) + "-" + str(d) + ".gif"
+                gifmaker.save_gif(seqs[i, :, d, :, :], outfile)
+                print('  --> saved to {0}'.format(outfile))
+
+    if savedir is not '':
+        cut1 = int(seqnum*0.8)
+        cut2 = int(seqnum*0.9)
+        save_to_numpy_format(seqs[:cut1], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-train.npz")
+        save_to_numpy_format(seqs[cut1:cut2], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-valid.npz")
+        save_to_numpy_format(seqs[cut2:], input_seq_len, output_seq_len, zmaxs, zmins, savedir + "/dataset-test.npz")
     else:
         return zmins, zmaxs, seqs
 
@@ -293,14 +331,41 @@ if __name__ == '__main__':
     t_in = 10
     t_out = 10
 
-    # generate grayscale radar+sat1 of every 5 minutes with interpolator
-    # generator(seqnum, (t_in+t_out, 2, w, h), step=5, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1')
+    # dataset
+    # begin='201408010000'
+    # end='201408312330'
 
-    # generate grayscale radar+sat1 of every 30 minutes without interpolator
-    # generator(seqnum, (t_in+t_out, 2, w, h), step=30, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1_step30')
+    # generate grayscale radar+sat1 of every 5 minutes with interpolator
+    # generate(seqnum, (t_in+t_out, 2, h, w), begin=begin, end=end, step=5, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1')
+
+    # generate grayscale radar+sat1 of every 30 minutes
+    # generate(seqnum, (t_in+t_out, 2, h, w), begin=begin, end=end, step=30, input_seq_len=t_in, output_seq_len=t_out, mode='grayscale', savedir='out_radar_sat1_step30')
 
     # generate rgb radar+sat1 of every 5 minutes with interpolator
-    # generator(seqnum, (t_in+t_out, 4, w, h), step=5, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb')
+    # generate(seqnum, (t_in+t_out, 4, h, w), begin=begin, end=end, step=5, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb')
 
-    # generate grayscale radar+sat1 of every 30 minutes without interpolator
-    generator(seqnum, (t_in+t_out, 4, w, h), step=30, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb_step30')
+    # generate grayscale radar+sat1 of every 30 minutes
+    # generate(seqnum, (t_in+t_out, 4, h, w), begin=begin, end=end, step=30, input_seq_len=t_in, output_seq_len=t_out, mode='rgb', savedir='out_radar_sat1_rgb_step30')
+
+    # generate grayscale radar+sat1 of every 30 minutes
+    genargs = [
+        {'seqnum': 15000,
+         'seqdim': (t_in+t_out, 2, h, w),
+         'offset': (0,0,0),
+         'begin': '201408010000',
+         'end': '201408312330',
+         'step': 30,
+         'input_seq_len': t_in,
+         'output_seq_len': t_out,
+         'mode': 'grayscale'},
+        {'seqnum': 15000,
+         'seqdim': (t_in+t_out, 2, h, w),
+         'offset': (0,0,0),
+         'begin': '201508010000',
+         'end': '201508312330',
+         'step': 30,
+         'input_seq_len': t_in,
+         'output_seq_len': t_out,
+         'mode': 'grayscale'},
+    ]
+    concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out2_radar_sat1_rgb_step30')
