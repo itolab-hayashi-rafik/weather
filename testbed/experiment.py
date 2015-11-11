@@ -80,6 +80,30 @@ def patchify(data, patch_size):
             patches.append(data[:, :, j*patch_shape[2]:(j+1)*patch_shape[2], i*patch_shape[3]:(i+1)*patch_shape[3]])
     return ndarray(patches).swapaxes(0,1).reshape(patch_shape)
 
+def reshape_patch(data, patch_size):
+    assert 4 == data.ndim
+    assert isinstance(patch_size, tuple) and len(tuple) == 2
+
+    # dataset.shape: (n_timesteps, n_samples, n_feature_maps, height, width)
+    ret = data.reshape((data.shape[0], data.shape[1], data.shape[2] / patch_size[0], patch_size[0],
+                        data.shape[3] / patch_size[1], patch_size[1])) \
+        .swapaxes(2, 3) \
+        .rollaxis(5, 3) \
+        .reshape((data.shape[0], data.shape[1] * patch_size[0] * patch_size[1], data.shape[2], data.shape[3]))
+    return ret
+
+def reshape_patch_back(patches, patch_size):
+    assert 4 == patches.ndim
+    assert isinstance(patch_size, tuple) and len(tuple) == 2
+
+    # patches.shape: (n_timesteps, n_samples, n_patch_feature_maps, patch_height, patch_width)
+    ret = patches.reshape(patches.shape[0], patches.shape[1] / patch_size[0] / patch_size[1],
+                          patch_size[0], patch_size[1], patches.shape[2], patches.shape[3]).rollaxis(3, 5).swapaxes(3, 2)\
+        .reshape((patches.shape[0], patches.shape[1] / patch_size[0] / patch_size[1],
+         patches.shape[2] * patch_size[0], patches.shape[3] * patch_size[1]))
+
+    return ret
+
 def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_size):
     '''
     load datasets
@@ -92,8 +116,8 @@ def moving_mnist_load_dataset(train_dataset, valid_dataset, test_dataset, patch_
         nda = numpy.load(file)
         input_raw_data = nda['input_raw_data']
         clips = nda['clips']
-        xs = [patchify(input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]], patch_size) for i in xrange(clips.shape[1])]
-        ys = [patchify(input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]], patch_size) for i in xrange(clips.shape[1])]
+        xs = [reshape_patch(input_raw_data[clips[0,i,0]:clips[0,i,0]+clips[0,i,1]], patch_size) for i in xrange(clips.shape[1])]
+        ys = [reshape_patch(input_raw_data[clips[1,i,0]:clips[1,i,0]+clips[1,i,1]], patch_size) for i in xrange(clips.shape[1])]
         return (ndarray(xs), ndarray(ys))
 
     # load dataset

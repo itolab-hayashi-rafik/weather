@@ -368,4 +368,4 @@ if __name__ == '__main__':
          'output_seq_len': t_out,
          'mode': 'grayscale'},
     ]
-    concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out2_radar_sat1_rgb_step30')
+    concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out2_radar_sat1_step30')
