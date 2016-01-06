@@ -311,8 +311,8 @@ def convert_to_multi_view(filepath):
     dims[0][0][0] = 1
     dims[1][0][0] = 1
     clips = [f['clips'], f['clips']]
-    numpy.savez('{0}-view0.{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
-    numpy.savez('{0}-view1.{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
+    numpy.savez('{0}-view0{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
+    numpy.savez('{0}-view1{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
