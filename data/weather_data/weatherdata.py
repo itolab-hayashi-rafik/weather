@@ -299,15 +299,20 @@ def concat_generate(genargs=[{}], input_seq_len=10, output_seq_len=10, savedir='
     else:
         return zmins, zmaxs, seqs
 
-def convert_to_multi_view():
-    f = numpy.load('dataset-train.npz')
+def convert_to_multi_view(filepath):
+    if not os.path.isfile(filepath):
+        raise ValueError("file not found: "+filepath)
+
+    filename, file_extension = os.path.splitext(filepath)
+
+    f = numpy.load(filepath)
     input_raw_data = [f['input_raw_data'][:,[0],:,:], f['input_raw_data'][:,[1],:,:]]
     dims = [f['dims'][:], f['dims'][:]]
     dims[0][0][0] = 1
     dims[1][0][0] = 1
     clips = [f['clips'], f['clips']]
-    numpy.savez('dataset-train-view0.npz', clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
-    numpy.savez('dataset-train-view1.npz', clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
+    numpy.savez('{0}-view0.{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
+    numpy.savez('{0}-view1.{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
@@ -389,3 +394,7 @@ if __name__ == '__main__':
          'mode': 'grayscale'},
     ]
     concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out_radar_himawari8_step5')
+
+    # convert_to_multi_view('out_radar_himawari8_step5/dataset-train.npz')
+    # convert_to_multi_view('out_radar_himawari8_step5/dataset-valid.npz')
+    # convert_to_multi_view('out_radar_himawari8_step5/dataset-test.npz')
