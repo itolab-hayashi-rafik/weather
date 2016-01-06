@@ -8,7 +8,7 @@ import numpy
 from scipy.interpolate import RegularGridInterpolator
 
 import gifmaker
-from generator import SinGenerator, RadarGenerator, SatelliteGenerator
+from generator import SinGenerator, RadarGenerator, SatelliteGenerator, Himawari8Generator
 
 '''
 weather dataset generator
@@ -77,12 +77,15 @@ def skip(generator, skip_num):
         while True:
             yield gen.next()
             for _ in xrange(skip_num):
-                gen.next()
+                try:
+                    gen.next()
+                except Exception as e:
+                    print("Warning: skipped empty data with the error"+str(e))
     except StopIteration:
         pass
 
 class WeatherDataGenerator(object):
-    def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS",
+    def __init__(self, seqnum=15000, seqdim=(10, 3, 16, 16), offset=(0,0,0), radar_dir='../radar', sat1_dir="../eisei_PS01IR1", sat2_dir="../eisei_PS01VIS", himawari8_dir='../himawari8',
                  begin='201408010000', end='201408312330', step=5, method='linear', mode='grayscale'):
         self.generators = []
         self.generators += [{
@@ -90,16 +93,21 @@ class WeatherDataGenerator(object):
                                         begin=begin, end=end, step='5'),
             'step': 5
         }]
-        self.generators += [{
-            'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
-                                            begin=begin, end=end, step='30', mode=mode),
-            'step': 30
-        }]
+        # self.generators += [{
+        #     'generator': SatelliteGenerator(sat1_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+        #                                     begin=begin, end=end, step='30', mode=mode),
+        #     'step': 30
+        # }]
         # self.generators += [{
         #     'generator': SatelliteGenerator(sat2_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
         #                                     begin=begin, end=end, step='30', mode=mode),
         #     'step': 30
         # }]
+        self.generators += [{
+            'generator': Himawari8Generator(himawari8_dir, w=seqdim[-1], h=seqdim[-2], offset=(offset[2], offset[1], offset[0]),
+                                            begin=begin, end=end, step='0500'),
+            'step': 5
+        }]
 
         self.seqnum = seqnum
         self.seqdim = seqdim
@@ -112,14 +120,16 @@ class WeatherDataGenerator(object):
         # interpolate generators
         self._generators = []
         for entry in self.generators:
-            if entry['step'] >= self.step:
-                generator = interpolate(entry['generator'], (entry['step']/self.step-1), method=self.method)
+            if entry['step'] > self.step:
+                generator = interpolate(entry['generator'], int(entry['step']/self.step-1), method=self.method)
+            elif entry['step'] == self.step:
+                generator = entry['generator']
             else:
-                generator = skip(entry['generator'], (self.step/entry['step']-1))
+                generator = skip(entry['generator'], int(self.step/entry['step']-1))
             self._generators.append(generator)
 
         # initialize first frames with with zeros
-        self.frames = [numpy.zeros((1,) + self.seqdim[2:], dtype=numpy.float32) for _ in self.generators]
+        self.frames = [numpy.zeros(entry['generator'].dim, dtype=numpy.float32) for entry in self.generators]
 
         self.t = -1
 
@@ -128,10 +138,21 @@ class WeatherDataGenerator(object):
 
     def next(self):
         self.t = self.t + 1
+        hasError = False
 
         # generate frame by generators if necessary
         for i,generator in enumerate(self._generators):
-            self.frames[i] = generator.next()
+            try:
+                self.frames[i] = generator.next()
+            except StopIteration:
+                raise StopIteration
+            except Exception as e:
+                print('Error: generator['+str(i)+'] raised an error '+str(e))
+                self.frames[i] = numpy.nan
+                hasError = True
+
+        if hasError:
+            raise ValueError('Some of the generators raised errors')
 
         # concatenate frames
         frame = numpy.concatenate(self.frames, axis=0)
@@ -189,7 +210,13 @@ def generator(seqnum, seqdim, offset, begin, end, step, input_seq_len, output_se
 
     def fill_frames():
         while len(frames) < seqdim[0]:
-            frame = gen.next()
+            try:
+                frame = gen.next()
+            except StopIteration:
+                raise StopIteration
+            except:
+                frame = None
+
             if frame is None:
                 del frames[:]
             else:
@@ -354,20 +381,11 @@ if __name__ == '__main__':
         {'seqnum': 15000,
          'seqdim': (t_in+t_out, 2, h, w),
          'offset': (0,0,0),
-         'begin': '201408010000',
-         'end': '201408312330',
-         'step': 30,
-         'input_seq_len': t_in,
-         'output_seq_len': t_out,
-         'mode': 'grayscale'},
-        {'seqnum': 15000,
-         'seqdim': (t_in+t_out, 2, h, w),
-         'offset': (0,0,0),
-         'begin': '201508010000',
-         'end': '201508312330',
-         'step': 30,
+         'begin': '20151001000000',
+         'end': '20151031235730',
+         'step': 5,
          'input_seq_len': t_in,
          'output_seq_len': t_out,
          'mode': 'grayscale'},
     ]
-    concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out2_radar_sat1_step30')
+    concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out_radar_himawari8_step5')
