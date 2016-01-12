@@ -302,7 +302,6 @@ def concat_generate(genargs=[{}], input_seq_len=10, output_seq_len=10, savedir='
 def convert_to_multi_view(filepath):
     if not os.path.isfile(filepath):
         raise ValueError("file not found: "+filepath)
-
     filename, file_extension = os.path.splitext(filepath)
 
     f = numpy.load(filepath)
@@ -313,6 +312,34 @@ def convert_to_multi_view(filepath):
     clips = [f['clips'], f['clips']]
     numpy.savez('{0}-view0{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
     numpy.savez('{0}-view1{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
+
+def patchify(filepath, patchsize=2):
+    if not os.path.isfile(filepath):
+        raise ValueError("file not found: "+filepath)
+    filename, file_extension = os.path.splitext(filepath)
+
+    f = numpy.load(filepath)
+    dims = (f['dims'][0,0], f['dims'][0,1], f['dims'][0,2])
+    input_seqlen = f['clips'][0,0,1]
+    output_seqlen = f['clips'][1,0,1]
+    seqlen = input_seqlen + output_seqlen
+    seqnum = f['clips'].shape[1]
+
+    input_raw_data = f['input_raw_data'] \
+        .reshape((seqnum, seqlen, dims[0], patchsize, dims[1]/patchsize, patchsize, dims[2]/patchsize), order='C') \
+        .swapaxes(4,5) \
+        .reshape((seqnum, seqlen, dims[0], patchsize*patchsize, dims[1]/patchsize, dims[2]/patchsize), order='C') \
+        .swapaxes(2,3) \
+        .reshape((seqnum, seqlen*patchsize*patchsize, dims[0], dims[1]/patchsize, dims[2]/patchsize), order='F') \
+        .reshape((seqnum*seqlen*patchsize*patchsize, dims[0], dims[1]/patchsize, dims[2]/patchsize), order='C')
+
+    dims = (dims[0], dims[1]/patchsize, dims[2]/patchsize)
+
+    clips = numpy.tile(f['clips'], (patchsize*patchsize,1,1,1))
+    for n in xrange(clips.shape[0]): clips[n] = clips[n] + n*seqnum*seqlen
+    clips = clips.swapaxes(0,1).reshape((2,patchsize*patchsize*seqnum,2))
+
+    numpy.savez('{0}-{1}x{2}{3}'.format(filename, dims[1], dims[2], file_extension), input_raw_data=input_raw_data, dims=dims, clips=clips, zmaxs=f['zmaxs'], zmins=f['zmins'])
 
 def file_check(dir='../radar', begin="201408010000", end="201408312330", step=5):
     tbegin = int(calendar.timegm(datetime.strptime(begin, '%Y%m%d%H%M').timetuple()))
@@ -395,6 +422,6 @@ if __name__ == '__main__':
     ]
     concat_generate(genargs, input_seq_len=t_in, output_seq_len=t_out, savedir='out_radar_himawari8_step5')
 
-    # convert_to_multi_view('out_radar_himawari8_step5/dataset-train.npz')
-    # convert_to_multi_view('out_radar_himawari8_step5/dataset-valid.npz')
-    # convert_to_multi_view('out_radar_himawari8_step5/dataset-test.npz')
+    convert_to_multi_view('out_radar_himawari8_step5/dataset-train.npz')
+    convert_to_multi_view('out_radar_himawari8_step5/dataset-valid.npz')
+    convert_to_multi_view('out_radar_himawari8_step5/dataset-test.npz')
