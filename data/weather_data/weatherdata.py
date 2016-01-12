@@ -310,8 +310,8 @@ def convert_to_multi_view(filepath):
     dims[0][0][0] = 1
     dims[1][0][0] = 1
     clips = [f['clips'], f['clips']]
-    numpy.savez('{0}-view0{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0])
-    numpy.savez('{0}-view1{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1])
+    numpy.savez('{0}-view0{1}'.format(filename, file_extension), clips=clips[0], dims=dims[0], input_raw_data=input_raw_data[0], zmins=[f['zmins'][0]], zmaxs=[f['zmaxs'][0]])
+    numpy.savez('{0}-view1{1}'.format(filename, file_extension), clips=clips[1], dims=dims[1], input_raw_data=input_raw_data[1], zmins=[f['zmins'][1]], zmaxs=[f['zmaxs'][1]])
 
 def patchify(filepath, patchsize=2):
     if not os.path.isfile(filepath):
