@@ -181,8 +181,8 @@ def normalize(seqs):
     zmaxs = [None for channel in xrange(seqs.shape[2])]
     zmins = [None for channel in xrange(seqs.shape[2])]
     for channel in xrange(seqs.shape[2]):
-        zmax = numpy.max(seqs)
-        zmin = numpy.min(seqs)
+        zmax = numpy.max(seqs[:,:,channel,:,:])
+        zmin = numpy.min(seqs[:,:,channel,:,:])
         seqs[:,:,channel,:,:] = (seqs[:,:,channel,:,:] - zmin) / (zmax - zmin)
         zmaxs[channel] = zmax
         zmins[channel] = zmin
@@ -333,7 +333,7 @@ def patchify(filepath, patchsize=2):
         .reshape((seqnum, seqlen*patchsize*patchsize, dims[0], dims[1]/patchsize, dims[2]/patchsize), order='F') \
         .reshape((seqnum*seqlen*patchsize*patchsize, dims[0], dims[1]/patchsize, dims[2]/patchsize), order='C')
 
-    dims = (dims[0], dims[1]/patchsize, dims[2]/patchsize)
+    dims = numpy.asarray([[dims[0], dims[1]/patchsize, dims[2]/patchsize]], dtype="int32")
 
     clips = numpy.tile(f['clips'], (patchsize*patchsize,1,1,1))
     for n in xrange(clips.shape[0]): clips[n] = clips[n] + n*seqnum*seqlen
